@@ -1,16 +1,3 @@
-use std::{
-    // env::args, 
-    // error::Error, 
-    // io::{BufRead, BufReader, Lines, Read}, 
-    process::exit, 
-    // str::{FromStr, SplitAsciiWhitespace}
-};
-
-use std::{
-    fs::ReadDir,
-    path::Path,
-};
-
 pub mod ast;
 pub mod languages;
 pub mod parser;
@@ -18,7 +5,9 @@ pub mod scanner;
 
 use ast::Definitions;
 use clap::Parser;
+use languages::output_c;
 use scanner::Scanner;
+use std::{ fs::ReadDir, path::Path, process::exit };
 
 const ALLOCATION_SIZE: usize = 0x40;
 
@@ -68,6 +57,12 @@ impl Language {
     }
 }
 
+pub struct RuneFileDescription {
+    pub relative_path: String,
+    pub file_name:     String,
+    pub definitions:   Definitions
+}
+
 // Functions
 // ——————————
 
@@ -87,16 +82,16 @@ fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) {
                     Ok(file_type) => {
                         if file_type.is_dir() {
 
-                            // Subfolder 
+                            // Subfolder
                             // ——————————
 
                             println!("Found subdirectory named {0:?}", item.file_name());
 
                             let subfolder_string: String = format!("{0}/{1}", folder_path.as_os_str().to_str().unwrap(), item.file_name().to_str().unwrap());
-                            
+
                             let subfolder_path: &Path = Path::new(&subfolder_string);
 
-                            // Recursively call function to parse files in subfolder 
+                            // Recursively call function to parse files in subfolder
                             get_rune_files(subfolder_path, &mut rune_file_list);
 
                         } else if file_type.is_file() {
@@ -109,7 +104,7 @@ fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) {
                             if file_string.ends_with(".rune") {
                                 rune_file_list.push(format!("{0}/{1}", folder_path.as_os_str().to_str().unwrap(), file_string));
                             }
-                            
+
                         } else {
                             /* Nothing - Ignore anything that is not a subfolder or a .rune file */
                         }
@@ -130,7 +125,7 @@ fn main() -> Result<(), usize> {
     let input_path: &Path = Path::new(args.rune_folder.as_str());
     let output_path: &Path = Path::new(args.output_folder.as_str());
     let output_language: Language = Language::from_string(args.language);
-    
+
     // Validate arguments
     // ———————————————————
 
@@ -163,7 +158,7 @@ fn main() -> Result<(), usize> {
     // Get rune files from folder
     // ———————————————————————————
 
-    // Create a vector with allocated space for 64 rune files, which should be more than plenty for most projects 
+    // Create a vector with allocated space for 64 rune files, which should be more than plenty for most projects
     let mut rune_file_list: Vec<String> = Vec::with_capacity(ALLOCATION_SIZE);
 
     get_rune_files(input_path, &mut rune_file_list);
@@ -183,12 +178,14 @@ fn main() -> Result<(), usize> {
     // Process rune files
     // ———————————————————
 
-    let mut types_list: Vec<Definitions> = Vec::with_capacity(ALLOCATION_SIZE);
+    let mut types_list: Vec<RuneFileDescription> = Vec::with_capacity(ALLOCATION_SIZE);
 
     for filepath in rune_file_list {
-        let file = match std::fs::read_to_string(Path::new(&filepath)) {
+        let file_path: &Path = Path::new(&filepath);
+
+        let file = match std::fs::read_to_string(file_path) {
             Err(error) => panic!("Error in reading file to string. Got error {0}", error),
-            Ok(path)  => path 
+            Ok(path)  => path
         };
 
         let tokens = match Scanner::new(file.chars()).scan_all() {
@@ -207,19 +204,33 @@ fn main() -> Result<(), usize> {
             Ok(t) => t,
         };
 
-        dbg!(&types);
+        // dbg!(&types);
+        // println!("\n——————————————————————————————————————————————————————————————\n");
 
-        println!("\n——————————————————————————————————————————————————————————————\n");
+        // Get isolated file name (without .rune extension)
+        let file_name: String = file_path.file_name().unwrap().to_str().unwrap().strip_suffix(".rune").unwrap().to_string();
 
-        types_list.push(types);
+        // Get relative path (from input path)
+        let relative_path: String = filepath.strip_prefix(input_path.to_str().unwrap()).unwrap()
+                                            .strip_prefix("/").unwrap()
+                                            .strip_suffix(file_path.file_name().unwrap().to_str().unwrap()).unwrap().to_string();
+
+        types_list.push(
+            RuneFileDescription {
+                relative_path: relative_path,
+                file_name:     file_name,
+                definitions:   types,
+            }
+        );
     }
 
     // Create source files
     // ————————————————————
 
-    
-
-
+    match output_language {
+        Language::C => output_c(types_list, output_path),
+        Language::Unsupported => unreachable!()
+    }
 
     Ok(())
 }

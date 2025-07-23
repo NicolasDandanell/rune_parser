@@ -3,6 +3,11 @@
 
 // Add option to pack
 
-pub fn output_c_source() {
+use crate::RuneFileDescription;
+use std::{ path::Path };
+
+pub fn output_c(file_description: Vec<RuneFileDescription>, output_path: &Path) {
+
+
 
 }
