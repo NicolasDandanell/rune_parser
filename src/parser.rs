@@ -180,6 +180,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                         field_type: tk.item.clone(),
                         field_slot,
                         comment: comment.map(|s| s.item),
+                        user_definition_link: UserDefinitionLink::NoLink
                     });
 
                     if tokens.maybe_expect(Token::SemiColon).is_none() {
@@ -251,13 +252,46 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
             }
             Token::Include => {
                 tokens.expect_next()?;
-                let string = tokens.expect_string_literal()?;
+                let string: String = tokens.expect_string_literal()?.item.strip_suffix(".rune").expect("File included was now a .rune file").to_string();
+                tokens.expect_token(Token::SemiColon)?;
+                definitions.includes.push(
+                    IncludeDefinition {
+                        file: string
+                    }
+                );
+            }
+            Token::Define => {
+                tokens.expect_next()?;
+
+                // Get definition name
+                let definition_name = tokens.expect_identifier()?;
+
+                let define_value_token = tokens.expect_next()?;
+                let define_value: DefineValue = match &define_value_token.item {
+                    Token::IntegerLiteral(i) => DefineValue::IntegerLiteral(*i),
+                    Token::FloatLiteral(f) => DefineValue::FloatLiteral(*f),
+                    _ => return Err(ParsingError::UnexpectedToken(define_value_token)),
+                };
+
                 tokens.expect_token(Token::SemiColon)?;
 
-                // Nicolas did something here, rest is Mark's work :)
-                definitions.includes.push(IncludeDefinition { 
-                    file: string.item  
-                });
+                // Save, as implementing Composite value will require more debugging
+                /* match define_value {
+                    DefineValue::IntegerLiteral(integer) => {
+                        println!("Got definition with identifier \"{0}\" and integer value \"{1}\"", definition_name.item, integer)
+                    },
+                    DefineValue::FloatLiteral(float)     => {
+                        println!("Got definition with identifier \"{0}\" and float value \"{1}\"", definition_name.item, float)
+                    },
+                    _ => panic!("Composite define values not implemented yet!")
+                }; */
+
+                definitions.defines.push(
+                    DefineDefinition {
+                        identifier: definition_name.item,
+                        value:      define_value
+                    }
+                );
             }
             _ => return Err(ParsingError::UnexpectedToken(token.clone())),
         }

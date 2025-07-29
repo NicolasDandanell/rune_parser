@@ -3,19 +3,34 @@
 /// Top Level Struct containing all message definitions in a compilation unit (file + includes)
 #[derive(Debug, Clone)]
 pub struct Definitions {
+    pub defines: Vec<DefineDefinition>,
+    pub enums: Vec<EnumDefinition>,
     pub includes: Vec<IncludeDefinition>,
     pub structs: Vec<StructDefinition>,
-    pub enums: Vec<EnumDefinition>,
 }
 
 impl Definitions {
     pub fn new() -> Self {
         Self {
-            includes: Default::default(),
-            structs: Default::default(),
+            defines: Default::default(),
             enums: Default::default(),
+            includes: Default::default(),
+            structs: Default::default()
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum DefineValue {
+    IntegerLiteral(i64),
+    FloatLiteral(f64),
+    Composite(String)
+}
+
+#[derive(Debug, Clone)]
+pub struct DefineDefinition {
+    pub identifier: String,
+    pub value:      DefineValue
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +46,15 @@ pub struct StructDefinition {
     pub comment: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub enum UserDefinitionLink {
+    NoLink,
+    // Copy value of the enum definition
+    EnumLink(EnumDefinition),
+    // Copy value of the struct definition
+    StructLink(StructDefinition)
+}
+
 ///
 /// /* $comment */
 /// $ident: $field_type = $field_slot;
@@ -39,7 +63,8 @@ pub struct StructMember {
     pub ident: String,
     pub field_type: FieldType,
     pub field_slot: FieldSlot,
-    pub comment: Option<String>,
+    pub user_definition_link: UserDefinitionLink,
+    pub comment: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +91,7 @@ pub enum FieldType {
     Long,
 
     Array(Box<FieldType>, usize),
+
     UserDefined(String),
 }
 
@@ -94,5 +120,14 @@ pub struct EnumMember {
 #[derive(Debug, Clone)]
 pub enum EnumValue {
     IntegerLiteral(i64),
-    FloatLiteral(f64),
+    FloatLiteral(f64)
+}
+
+impl EnumValue {
+    pub fn to_string(&self) -> String{
+        match self {
+            EnumValue::FloatLiteral(float)     => float.to_string(),
+            EnumValue::IntegerLiteral(integer) => integer.to_string()
+        }
+    }
 }

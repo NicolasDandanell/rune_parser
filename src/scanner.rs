@@ -90,6 +90,7 @@ impl<T> DerefMut for Spanned<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
+    Define,
     Enum,
     Struct,
     Include,
@@ -182,6 +183,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
     pub fn keyword(&self, what: &str) -> Option<Token> {
         match what.to_owned().to_lowercase().as_str() {
+            "define" => Some(Token::Define),
             "struct" => Some(Token::Struct),
             "enum" => Some(Token::Enum),
             "include" => Some(Token::Include),

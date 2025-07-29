@@ -3,11 +3,13 @@ pub mod languages;
 pub mod parser;
 pub mod scanner;
 
-use ast::Definitions;
+use ast::{ UserDefinitionLink, Definitions };
 use clap::Parser;
-use languages::output_c;
+use languages::c::output_c_files;
 use scanner::Scanner;
 use std::{ fs::ReadDir, path::Path, process::exit };
+
+use crate::ast::FieldType;
 
 const ALLOCATION_SIZE: usize = 0x40;
 
@@ -57,6 +59,7 @@ impl Language {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RuneFileDescription {
     pub relative_path: String,
     pub file_name:     String,
@@ -115,6 +118,122 @@ fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) {
     }
 }
 
+fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) {
+
+    println!("Linking user definitions");
+    println!("—————————————————————————");
+    println!("");
+
+
+    // Room for 64 user definitions should be plenty to begin with
+    // let mut user_definition_list: Vec<(&String, &mut UserDefinitionLink)> = Vec::with_capacity(0x40);
+
+    // Save indexes instead ??? The i, j, z values below...
+
+    let immutable_reference = definitions.clone();
+
+    // Find every struct member with the type UserDefinition, and add a link to its name and link to the list
+    for file in definitions {
+
+        // Check all structs
+        for struct_definition in &mut file.definitions.structs {
+
+            // Check all struct members
+            for member in &mut struct_definition.members {
+
+                // Check if struct member is user defined
+                match &member.field_type {
+                    FieldType::UserDefined(name) => {
+                        println!("Found user defined type '{0}'", name);
+
+                        // user_definition_list.push((name, &mut definitions[i].definitions.structs[j].members[z].user_definition_link))
+
+
+
+                        member.user_definition_link = find_definition(name, &immutable_reference);
+
+                        println!("");
+                    },
+                    _ => ()
+                }
+            }
+        }
+    }
+
+    // Then find the struct or enum with the corresponding name, and link to it
+    /* for file in &mut *definitions {
+
+        // Find an enum matches one of the entries on the list
+        for enum_definition in &mut file.definitions.enums {
+
+            // Check if enum matches any identity on the list
+            for list_definition in &mut user_definition_list {
+                if list_definition.0.as_str() == enum_definition.name.as_str() {
+                    println!("Found enum match for definition {0}", list_definition.0);
+                }
+            }
+
+        }
+
+        // Find a struct that matches one of the entries on the list
+        for struct_definition in &mut file.definitions.structs {
+
+            // Check if struct matches any identity on the list
+            for list_definition in &mut user_definition_list {
+                if list_definition.0.as_str() == struct_definition.name.as_str() {
+                    println!("Found struct match for definition {0}", list_definition.0);
+                }
+            }
+        }
+    } */
+
+}
+
+fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) -> UserDefinitionLink {
+    // Then find the struct or enum with the corresponding name, and link to it
+
+    for file in definitions {
+        // Find an enum matches one of the entries on the list
+        for enum_definition in &file.definitions.enums {
+
+            // Check if enum matches the identifier
+            if identifier == enum_definition.name.as_str() {
+                println!("    Found enum match for definition '{0}'", identifier);
+                return UserDefinitionLink::EnumLink(enum_definition.clone())
+            }
+        }
+
+        // Find a struct that matches one of the entries on the list
+        for struct_definition in &file.definitions.structs {
+
+            // Check if struct matches the identifier
+            if identifier == struct_definition.name.as_str() {
+
+                // !!! Using defines as array sizes might also require work here !!!
+
+                let mut definition_copy = struct_definition.clone();
+
+                // Call recursively if struct found contains user defined members
+                for member in &mut definition_copy.members {
+                    match &member.field_type {
+                        FieldType::UserDefined(name) => {
+                            // Since we return a copy, we can easily modify the definition_copy without issue
+                            member.user_definition_link = find_definition(&name, definitions)
+                        }
+                        _ => ()
+                    }
+                }
+
+                println!("    Found struct match for definition '{0}'", identifier);
+                return UserDefinitionLink::StructLink(definition_copy.clone())
+            }
+        }
+    }
+
+    println!("    Found no user definition for identifier '{0}'!", identifier);
+    return UserDefinitionLink::NoLink
+}
+
 fn main() -> Result<(), usize> {
 
     // Parse arguments
@@ -122,9 +241,10 @@ fn main() -> Result<(), usize> {
 
     let args: Args = Args::parse();
 
-    let input_path: &Path = Path::new(args.rune_folder.as_str());
-    let output_path: &Path = Path::new(args.output_folder.as_str());
+    let input_path: &Path         = Path::new(args.rune_folder.as_str());
+    let output_path: &Path        = Path::new(args.output_folder.as_str());
     let output_language: Language = Language::from_string(args.language);
+    let pack_output: bool         = args.pack;
 
     // Validate arguments
     // ———————————————————
@@ -178,7 +298,7 @@ fn main() -> Result<(), usize> {
     // Process rune files
     // ———————————————————
 
-    let mut types_list: Vec<RuneFileDescription> = Vec::with_capacity(ALLOCATION_SIZE);
+    let mut definitions_list: Vec<RuneFileDescription> = Vec::with_capacity(ALLOCATION_SIZE);
 
     for filepath in rune_file_list {
         let file_path: &Path = Path::new(&filepath);
@@ -215,7 +335,7 @@ fn main() -> Result<(), usize> {
                                             .strip_prefix("/").unwrap()
                                             .strip_suffix(file_path.file_name().unwrap().to_str().unwrap()).unwrap().to_string();
 
-        types_list.push(
+        definitions_list.push(
             RuneFileDescription {
                 relative_path: relative_path,
                 file_name:     file_name,
@@ -224,11 +344,21 @@ fn main() -> Result<(), usize> {
         );
     }
 
+    // Link all user definitions
+    // ——————————————————————————
+
+    link_user_definitions(&mut definitions_list);
+
+    // Validate parsed data structures
+    // ————————————————————————————————
+
+    // To be implemented...
+
     // Create source files
     // ————————————————————
 
     match output_language {
-        Language::C => output_c(types_list, output_path),
+        Language::C => output_c_files(definitions_list, output_path, pack_output),
         Language::Unsupported => unreachable!()
     }
 
