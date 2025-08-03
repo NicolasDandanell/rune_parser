@@ -80,7 +80,10 @@ pub trait TokenSource: std::clone::Clone {
                 self.expect_token(Token::SemiColon)?;
                 let count_token = self.expect_next()?;
                 let count = match &count_token.item {
-                    Token::IntegerLiteral(i) => *i as usize,
+                    // Simple integer value will generate a simple number
+                    Token::IntegerLiteral(i) => ArraySize::NumericValue(*i as usize),
+                    // String will generate a user definition, which will be populated with a value in post processing
+                    Token::Identifier(s)  => ArraySize::UserDefinition(DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None } ),
                     _ => return Err(ParsingError::UnexpectedToken(count_token)),
                 };
 
@@ -219,7 +222,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     let enum_value_token = tokens.expect_next()?;
                     let enum_value = match &enum_value_token.item {
                         Token::IntegerLiteral(i) => EnumValue::IntegerLiteral(*i),
-                        Token::FloatLiteral(f) => EnumValue::FloatLiteral(*f),
+                        Token::FloatLiteral(f)   => EnumValue::FloatLiteral(*f),
                         _ => return Err(ParsingError::UnexpectedToken(enum_value_token)),
                     };
 
@@ -261,6 +264,8 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 );
             }
             Token::Define => {
+                let comment = last_comment.take();
+
                 tokens.expect_next()?;
 
                 // Get definition name
@@ -269,7 +274,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 let define_value_token = tokens.expect_next()?;
                 let define_value: DefineValue = match &define_value_token.item {
                     Token::IntegerLiteral(i) => DefineValue::IntegerLiteral(*i),
-                    Token::FloatLiteral(f) => DefineValue::FloatLiteral(*f),
+                    Token::FloatLiteral(f)   => DefineValue::FloatLiteral(*f),
                     _ => return Err(ParsingError::UnexpectedToken(define_value_token)),
                 };
 
@@ -289,7 +294,8 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 definitions.defines.push(
                     DefineDefinition {
                         identifier: definition_name.item,
-                        value:      define_value
+                        value:      define_value,
+                        comment:    comment
                     }
                 );
             }

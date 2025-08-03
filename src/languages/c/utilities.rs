@@ -1,4 +1,4 @@
-use crate::ast::{ FieldType, StructDefinition, StructMember, UserDefinitionLink };
+use crate::ast::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink };
 use std::{ fs::{ File, remove_file }, io::Write, path::Path };
 
 // String helper functions
@@ -91,8 +91,15 @@ impl FieldType {
 
             FieldType::UserDefined(string) => format!("{0}_t {1}", pascal_to_snake_case(string), name),
 
+            FieldType::Array(field_type, field_size) => {
 
-            FieldType::Array(field_type, field_size)   => format!("{0} {1}[{2}]", field_type.to_c_type(), name, field_size)
+                let array_size: String = match field_size {
+                    ArraySize::UserDefinition(definition) => definition.identifier.clone(),
+                    ArraySize::NumericValue(size) => size.to_string()
+                };
+
+                format!("{0} {1}[{2}]", field_type.to_c_type(), name, array_size)
+            }
         }
     }
 
@@ -120,36 +127,49 @@ impl FieldType {
 
     pub fn c_initializer(&self) -> String {
         match self {
-            FieldType::Boolean => String::from("false"),
-            FieldType::Byte    => String::from("0"),
-            FieldType::UByte   => String::from("0"),
-            FieldType::Short   => String::from("0"),
-            FieldType::UShort  => String::from("0"),
-            FieldType::Float   => String::from("0.0"),
-            FieldType::Int     => String::from("0"),
-            FieldType::UInt    => String::from("0"),
-            FieldType::Double  => String::from("0.0"),
-            FieldType::Long    => String::from("0"),
-            FieldType::ULong   => String::from("0"),
-            FieldType::Array(field_type, array_size) => format!("{{ [0 ... {0}] = {1} }}",
-                array_size - 1,
-                match field_type.as_ref() {
-                    FieldType::Boolean           => String::from("false"),
-                    FieldType::Byte              => String::from("0"),
-                    FieldType::UByte             => String::from("0"),
-                    FieldType::Short             => String::from("0"),
-                    FieldType::UShort            => String::from("0"),
-                    FieldType::Float             => String::from("0.0"),
-                    FieldType::Int               => String::from("0"),
-                    FieldType::UInt              => String::from("0"),
-                    FieldType::Double            => String::from("0.0"),
-                    FieldType::Long              => String::from("0"),
-                    FieldType::ULong             => String::from("0"),
-                    FieldType::Array(_, _)       => panic!("Nested arrays are not currently supported"),
-                    FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name))
-                }
-            ),
-            FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name))
+            FieldType::Boolean                    => String::from("false"),
+            FieldType::Byte                       => String::from("0"),
+            FieldType::UByte                      => String::from("0"),
+            FieldType::Short                      => String::from("0"),
+            FieldType::UShort                     => String::from("0"),
+            FieldType::Float                      => String::from("0.0"),
+            FieldType::Int                        => String::from("0"),
+            FieldType::UInt                       => String::from("0"),
+            FieldType::Double                     => String::from("0.0"),
+            FieldType::Long                       => String::from("0"),
+            FieldType::ULong                      => String::from("0"),
+            FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name)),
+            FieldType::Array(field_type, array_size) =>
+                format!("{{ [0 ... {0}] = {1} }}",
+                    match array_size {
+                        ArraySize::NumericValue(value) => value - 1,
+                        ArraySize::UserDefinition(definition) => {
+                            let size_value: usize = match definition.value {
+                                DefineValue::IntegerLiteral(value) => match value.try_into() {
+                                    Err(error) => panic!("Could not parse \"{0:?}\" array size into a positive integer value! Got error {1}", self, error),
+                                    Ok(value) => value
+                                },
+                                _ => panic!("Got \"{0:?}\" array size definition of an invalid type!", self)
+                            };
+                            size_value - 1
+                        }
+                    },
+                    match field_type.as_ref() {
+                        FieldType::Boolean           => String::from("false"),
+                        FieldType::Byte              => String::from("0"),
+                        FieldType::UByte             => String::from("0"),
+                        FieldType::Short             => String::from("0"),
+                        FieldType::UShort            => String::from("0"),
+                        FieldType::Float             => String::from("0.0"),
+                        FieldType::Int               => String::from("0"),
+                        FieldType::UInt              => String::from("0"),
+                        FieldType::Double            => String::from("0.0"),
+                        FieldType::Long              => String::from("0"),
+                        FieldType::ULong             => String::from("0"),
+                        FieldType::Array(_, _)       => panic!("Nested arrays are not currently supported"),
+                        FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name))
+                    }
+            )
         }
     }
 }
@@ -164,13 +184,41 @@ impl StructMember {
             // Calculate Array size based on (field type * field size)
             FieldType::Array(array_field_type, field_size) => {
 
-                match *array_field_type.to_owned() {
+                // Get the array size first
+                let array_size: usize = match field_size {
+                    ArraySize::NumericValue(value) => *value,
+                    ArraySize::UserDefinition(definition) => match definition.value {
+                        DefineValue::IntegerLiteral(value) => match value.try_into() {
+                            Err(error) => panic!("Could not parse \"{0}\" array size into a positive integer value! Got error {1}", self.ident, error),
+                            Ok(value) => value
+                        },
+                        _ => panic!("Got \"{0}\" array size definition of an invalid type!", self.ident)
+                    }
+                };
 
-                    FieldType::UserDefined(_) => panic!("Arrays of user defined types not allowed at the moment"),
+                // Parse the byte size based on the array type
+                match *array_field_type.to_owned() {
                     FieldType::Array(_, _)    => panic!("Nested arrays not allowed at the moment"),
 
+                    // Parse the user defined type using the member user_definition_link
+                    FieldType::UserDefined(type_string) => match &self.user_definition_link {
+                        UserDefinitionLink::NoLink                                    => panic!("Could not find definition for type {0} while parsing C size", type_string),
+                        UserDefinitionLink::EnumLink(enum_definition) => enum_definition.backing_type.primitive_c_size() * array_size,
+                        UserDefinitionLink::StructLink(struct_definition) => {
+
+                            let mut struct_size = 0;
+
+                            // Call this function recursively for each struct member to get size
+                            for member in &struct_definition.members {
+                                struct_size += member.c_size();
+                            }
+
+                            struct_size * array_size
+                        }
+                    },
+
                     // Primitives
-                    _ => array_field_type.primitive_c_size() * field_size
+                    _ => array_field_type.primitive_c_size() * array_size
                 }
             },
 

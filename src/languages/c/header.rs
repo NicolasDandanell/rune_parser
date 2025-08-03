@@ -1,7 +1,26 @@
-use crate::ast::{ EnumDefinition, StructDefinition, StructMember };
+use crate::ast::{ DefineDefinition, DefineValue, EnumDefinition, StructDefinition, StructMember };
 use crate::RuneFileDescription;
 use crate::languages::c::utilities::{ OutputFile, pascal_to_snake_case, pascal_to_uppercase, spaces };
 use std::path::Path;
+
+/// Outputs a define statement into the header file
+fn output_define(header_file: &mut OutputFile, define: &DefineDefinition) {
+    // Print comment if present
+    match &define.comment {
+        Some(comment) =>  header_file.add_line(format!("/**{0}*/", comment)),
+        None => ()
+    }
+
+    let define_name: String  = define.identifier.clone();
+    let define_value: String = match &define.value {
+        DefineValue::NoValue => String::from(""),
+        DefineValue::FloatLiteral(value)   => value.to_string(),
+        DefineValue::IntegerLiteral(value) => value.to_string(),
+        DefineValue::Composite(value)   => value.clone()
+    };
+
+    header_file.add_line(format!("#define {0} {1}", define_name, define_value));
+}
 
 /// Outputs an enum into the header file
 fn output_enum(header_file: &mut OutputFile, enum_definition: &EnumDefinition) {
@@ -133,8 +152,6 @@ fn output_struct_initializer(output_file: &mut OutputFile, struct_definition: &S
     }
     output_file.add_line(format!("}}"));
     output_file.add_newline();
-
-    println!("");
 }
 
 pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool) {
@@ -175,8 +192,8 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool
 
     // ...
 
-    // Include & C++ guards
-    // —————————————————————
+    // Start & C++ guards
+    // ———————————————————
 
     header_file.add_line(format!("#ifndef {0}_RUNE_H", file.file_name.to_uppercase()));
     header_file.add_line(format!("#define {0}_RUNE_H", file.file_name.to_uppercase()));
@@ -212,30 +229,40 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool
     header_file.add_line(format!("#define RUNIC {0}", packing_string));
     header_file.add_newline();
 
+    // User defines
+    // —————————————
+
+    if !file.definitions.defines.is_empty() {
+        for define in file.definitions.defines {
+            output_define(&mut header_file, &define);
+        }
+        header_file.add_newline();
+    }
+
     // Enums
-        // ——————
+    // ——————
 
-        // Print all enum definitions
-        for enum_definition in file.definitions.enums {
-            output_enum(&mut header_file, &enum_definition);
+    // Print all enum definitions
+    for enum_definition in file.definitions.enums {
+        output_enum(&mut header_file, &enum_definition);
+    }
+
+    // Structs
+    // ————————
+
+    if !file.definitions.structs.is_empty() {
+
+        // Print out structs
+        for struct_definition in file.definitions.structs {
+            output_struct(&mut header_file, &struct_definition);
+
+            // Add struct initializer
+            output_struct_initializer(&mut header_file, &struct_definition)
         }
+    }
 
-        // Structs
-        // ————————
-
-        if !file.definitions.structs.is_empty() {
-
-            // Print out structs
-            for struct_definition in file.definitions.structs {
-                output_struct(&mut header_file, &struct_definition);
-
-                // Add struct initializer
-                output_struct_initializer(&mut header_file, &struct_definition)
-            }
-        }
-
-    // Include & C++ guards
-    // —————————————————————
+    // End & C++ guards
+    // —————————————————
 
     header_file.add_line(format!("#ifdef __cplusplus"));
     header_file.add_line(format!("}}"));

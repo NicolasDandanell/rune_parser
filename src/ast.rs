@@ -22,6 +22,7 @@ impl Definitions {
 
 #[derive(Debug, Clone)]
 pub enum DefineValue {
+    NoValue,
     IntegerLiteral(i64),
     FloatLiteral(f64),
     Composite(String)
@@ -30,7 +31,8 @@ pub enum DefineValue {
 #[derive(Debug, Clone)]
 pub struct DefineDefinition {
     pub identifier: String,
-    pub value:      DefineValue
+    pub value:      DefineValue,
+    pub comment:    Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +43,7 @@ pub struct IncludeDefinition {
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
-    pub name: String,
+    pub name:    String,
     pub members: Vec<StructMember>,
     pub comment: Option<String>,
 }
@@ -68,6 +70,12 @@ pub struct StructMember {
 }
 
 #[derive(Debug, Clone)]
+pub enum ArraySize {
+    NumericValue(usize),
+    UserDefinition(DefineDefinition)
+}
+
+#[derive(Debug, Clone)]
 pub enum FieldSlot {
     NamedSlot(u64),
     VerificationField,
@@ -90,7 +98,7 @@ pub enum FieldType {
     ULong,
     Long,
 
-    Array(Box<FieldType>, usize),
+    Array(Box<FieldType>, ArraySize),
 
     UserDefined(String),
 }
