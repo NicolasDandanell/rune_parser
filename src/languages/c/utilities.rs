@@ -67,29 +67,29 @@ impl FieldType {
 
             FieldType::UserDefined(string) => format!("{0}_t", pascal_to_snake_case(string)),
 
-            // Should not be called on this type
-            FieldType::Array(_, _) => unreachable!()
+            // This will return the string of the underlying type
+            FieldType::Array(underlying_type, _) => underlying_type.to_c_type()
         }
     }
 
-    pub fn create_c_variable(&self, name: &String) -> String {
+    pub fn create_c_variable(&self, name: &String, spacing: usize) -> String {
         match self {
-            FieldType::Boolean => format!("bool {0}", name),
-            FieldType::UByte   => format!("uint8_t {0}", name),
-            FieldType::Byte    => format!("int8_t {0}", name),
+            FieldType::Boolean => format!("bool {0}{1}", spaces(spacing), name),
+            FieldType::UByte   => format!("uint8_t {0}{1}", spaces(spacing), name),
+            FieldType::Byte    => format!("int8_t {0}{1}", spaces(spacing), name),
 
-            FieldType::UShort  => format!("uint16_t {0}", name),
-            FieldType::Short   => format!("int16_t {0}", name),
+            FieldType::UShort  => format!("uint16_t {0}{1}", spaces(spacing), name),
+            FieldType::Short   => format!("int16_t {0}{1}", spaces(spacing), name),
 
-            FieldType::Float   => format!("float {0}", name),
-            FieldType::UInt    => format!("uint32_t {0}", name),
-            FieldType::Int     => format!("int32_t {0}", name),
+            FieldType::Float   => format!("float {0}{1}", spaces(spacing), name),
+            FieldType::UInt    => format!("uint32_t {0}{1}", spaces(spacing), name),
+            FieldType::Int     => format!("int32_t {0}{1}", spaces(spacing), name),
 
-            FieldType::Double  => format!("double {0}", name),
-            FieldType::ULong   => format!("uint64_t {0}", name),
-            FieldType::Long    => format!("int64_t {0}", name),
+            FieldType::Double  => format!("double {0}{1}", spaces(spacing), name),
+            FieldType::ULong   => format!("uint64_t {0}{1}", spaces(spacing), name),
+            FieldType::Long    => format!("int64_t {0}{1}", spaces(spacing), name),
 
-            FieldType::UserDefined(string) => format!("{0}_t {1}", pascal_to_snake_case(string), name),
+            FieldType::UserDefined(string) => format!("{0}_t {1}{2}", pascal_to_snake_case(string), spaces(spacing), name),
 
             FieldType::Array(field_type, field_size) => {
 
@@ -98,7 +98,7 @@ impl FieldType {
                     ArraySize::NumericValue(size) => size.to_string()
                 };
 
-                format!("{0} {1}[{2}]", field_type.to_c_type(), name, array_size)
+                format!("{0} {1}{2}[{3}]", field_type.to_c_type(), spaces(spacing), name, array_size)
             }
         }
     }

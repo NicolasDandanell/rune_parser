@@ -233,6 +233,19 @@ fn output_struct(header_file: &mut OutputFile, struct_definition: &StructDefinit
     // Sorted list --> Then use sorted list instead of other one
     let sorted_member_list: Vec<StructMember> = struct_definition.sort_members();
 
+    // >>> Spacing of struct members does not look good, and will thus be dropped <<<
+
+    // Get type sizes for spacing reasons
+    // let mut longest_type: usize = 0;
+    //
+    // for member in &sorted_member_list {
+    //     if member.field_type.to_c_type().len() > longest_type {
+    //         longest_type = member.field_type.to_c_type().len();
+    //     }
+    // }
+
+    // >>> end <<<
+
     // Print all struct members
     for i in 0..sorted_member_list.len() {
 
@@ -245,8 +258,9 @@ fn output_struct(header_file: &mut OutputFile, struct_definition: &StructDefinit
         }
 
         let member_name: String = pascal_to_snake_case(&struct_member.ident);
+        let spacing: usize      = 0; // longest_type - sorted_member_list[i].field_type.to_c_type().len();
 
-        header_file.add_line(format!("    {0};", struct_member.field_type.create_c_variable(&member_name)));
+        header_file.add_line(format!("    {0};", struct_member.field_type.create_c_variable(&member_name, spacing)));
     }
 
     header_file.add_line(format!("}} {0}_t;", struct_name));
