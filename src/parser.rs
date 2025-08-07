@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::types::*;
 
 use crate::scanner::*;
 use std::iter::{Iterator, Peekable};

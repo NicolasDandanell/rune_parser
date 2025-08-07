@@ -1,15 +1,15 @@
-pub mod ast;
+pub mod types;
 pub mod languages;
 pub mod parser;
 pub mod post_processing;
 pub mod scanner;
 
-use ast::Definitions;
 use clap::Parser;
 use languages::c::output_c_files;
 use post_processing::{ link_user_definitions, parse_define_statements };
 use scanner::Scanner;
 use std::{ fs::ReadDir, path::Path, process::exit };
+use types::Definitions;
 
 const ALLOCATION_SIZE: usize = 0x40;
 

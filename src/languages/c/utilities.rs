@@ -1,4 +1,4 @@
-use crate::ast::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink };
+use crate::types::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink };
 use std::{ fs::{ File, remove_file }, io::Write, path::Path };
 
 // String helper functions

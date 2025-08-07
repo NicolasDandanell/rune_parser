@@ -1,4 +1,4 @@
-use crate::ast::{ DefineDefinition, DefineValue, EnumDefinition, StructDefinition, StructMember };
+use crate::types::{ DefineDefinition, DefineValue, EnumDefinition, StructDefinition, StructMember };
 use crate::RuneFileDescription;
 use crate::languages::c::utilities::{ OutputFile, pascal_to_snake_case, pascal_to_uppercase, spaces };
 use std::path::Path;

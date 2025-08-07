@@ -1,4 +1,4 @@
-use crate::ast::{ ArraySize, FieldType, DefineDefinition, DefineValue, UserDefinitionLink };
+use crate::types::{ ArraySize, FieldType, DefineDefinition, DefineValue, UserDefinitionLink };
 use crate::RuneFileDescription;
 
 pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
