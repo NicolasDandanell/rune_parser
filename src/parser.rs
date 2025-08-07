@@ -153,6 +153,69 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
         let token = token.unwrap();
 
         match &token.item {
+            Token::Bitfield => {
+                // Get comment if any
+                let comment = last_comment.take();
+
+                // Type and identifier
+                tokens.expect_token(Token::Bitfield)?;
+                let ident = tokens.expect_identifier()?;
+
+                // Backing type
+                tokens.expect_token(Token::Colon)?;
+                let backing_type = tokens.expect_type()?;
+
+                // Get member fields
+                tokens.expect_token(Token::LeftBrace)?;
+                let mut members = Vec::new();
+
+                loop {
+                    // Comment if any
+                    let comment = tokens.maybe_expect_comment();
+
+                    // Identifier
+                    let field_ident = tokens.expect_identifier()?;
+
+                    // Bit size
+                    tokens.expect_token(Token::Colon)?;
+                    let bit_size_token = tokens.expect_next()?;
+                    let bit_size = match bit_size_token.item {
+                        Token::IntegerLiteral(i) => i as usize,
+                        _ => return Err(ParsingError::UnexpectedToken(bit_size_token))
+                    };
+
+                    // Bit field slot
+                    tokens.expect_token(Token::Equals)?;
+                    let field_slot_token = tokens.expect_next()?;
+                    let field_slot = match field_slot_token.item {
+                        Token::IntegerLiteral(i) => i as usize,
+                        _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
+                    };
+
+                    members.push(BitfieldMember {
+                        ident: field_ident.item.clone(),
+                        bit_size: bit_size,
+                        bit_slot: field_slot,
+                        comment: comment.map(|s| s.item)
+                    });
+
+                    if tokens.maybe_expect(Token::SemiColon).is_none() {
+                        tokens.expect_token(Token::RightBrace)?;
+                        break;
+                    }
+                    if tokens.maybe_expect(Token::RightBrace).is_some() {
+                        break;
+                    }
+                }
+
+                definitions.bitfields.push(BitfieldDefinition {
+                    name:         ident.item.clone(),
+                    backing_type: backing_type.item,
+                    members:      members,
+                    comment:      comment
+                })
+            },
+
             Token::Struct => {
                 let comment = last_comment.take();
                 tokens.expect_token(Token::Struct)?;
@@ -201,6 +264,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     comment,
                 })
             }
+
             Token::Enum => {
                 let comment = last_comment.take();
                 tokens.expect_token(Token::Enum)?;
@@ -249,10 +313,12 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     comment,
                 })
             }
+
             Token::Comment(s) => {
                 last_comment = Some(s.clone());
                 tokens.expect_next()?;
             }
+
             Token::Include => {
                 tokens.expect_next()?;
                 let string: String = tokens.expect_string_literal()?.item.strip_suffix(".rune").expect("File included was now a .rune file").to_string();
@@ -263,6 +329,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     }
                 );
             }
+
             Token::Define => {
                 let comment = last_comment.take();
 

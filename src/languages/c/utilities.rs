@@ -203,8 +203,9 @@ impl StructMember {
                     // Parse the user defined type using the member user_definition_link
                     FieldType::UserDefined(type_string) => match &self.user_definition_link {
                         UserDefinitionLink::NoLink                                    => panic!("Could not find definition for type {0} while parsing C size", type_string),
-                        UserDefinitionLink::EnumLink(enum_definition) => enum_definition.backing_type.primitive_c_size() * array_size,
-                        UserDefinitionLink::StructLink(struct_definition) => {
+                        UserDefinitionLink::BitfieldLink(bitfield_definition) => bitfield_definition.backing_type.primitive_c_size() * array_size,
+                        UserDefinitionLink::EnumLink(enum_definition)             => enum_definition.backing_type.primitive_c_size() * array_size,
+                        UserDefinitionLink::StructLink(struct_definition)       => {
 
                             let mut struct_size = 0;
 
@@ -224,9 +225,10 @@ impl StructMember {
 
             FieldType::UserDefined(name) => {
                 match &self.user_definition_link {
-                    UserDefinitionLink::NoLink                                          => panic!("Found no definition link for item {0}!", name),
-                    UserDefinitionLink::EnumLink(enum_definition)       => enum_definition.backing_type.primitive_c_size(),
-                    UserDefinitionLink::StructLink(struct_definition) => {
+                    UserDefinitionLink::NoLink                                                 => panic!("Found no definition link for item {0}!", name),
+                    UserDefinitionLink::BitfieldLink(bitfield_definition) => bitfield_definition.backing_type.primitive_c_size(),
+                    UserDefinitionLink::EnumLink(enum_definition)             => enum_definition.backing_type.primitive_c_size(),
+                    UserDefinitionLink::StructLink(struct_definition)       => {
                         let mut total_size = 0;
 
                         for member in &struct_definition.members {

@@ -1,4 +1,4 @@
-use crate::types::{ DefineDefinition, EnumDefinition };
+use crate::types::{ BitfieldDefinition, DefineDefinition, EnumDefinition };
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
@@ -19,6 +19,8 @@ pub struct StructMember {
 #[derive(Debug, Clone)]
 pub enum UserDefinitionLink {
     NoLink,
+    // Copy value of the bitfield defintion
+    BitfieldLink(BitfieldDefinition),
     // Copy value of the enum definition
     EnumLink(EnumDefinition),
     // Copy value of the struct definition

@@ -99,7 +99,18 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
     // Then find the struct or enum with the corresponding name, and link to it
 
     for file in definitions {
-        // Find an enum matches one of the entries on the list
+
+        // Check if a bitfield's name matches the identifier
+        for bitfield_definition in &file.definitions.bitfields {
+
+            // Check if bitfield matches the identifier
+            if identifier == bitfield_definition.name.as_str() {
+                println!("    Found bitfield match for definition '{0}'", identifier);
+                return UserDefinitionLink::BitfieldLink(bitfield_definition.clone())
+            }
+        }
+
+        // Check if an enum's name matches the identifier
         for enum_definition in &file.definitions.enums {
 
             // Check if enum matches the identifier
@@ -109,7 +120,7 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
             }
         }
 
-        // Find a struct that matches one of the entries on the list
+        // Check if a structs's name matches the identifier
         for struct_definition in &file.definitions.structs {
 
             // Check if struct matches the identifier
