@@ -73,19 +73,21 @@ fn output_bitfield(header_file: &mut OutputFile, bitfield_definition: &BitfieldD
     little_endian_order.push(padding.clone());
 
     // Print bits
-    for member in &little_endian_order {
-        if member.comment.is_some() {
-            // Member comment
-            header_file.add_line(format!("    /**{0}*/", member.comment.as_ref().unwrap()));
+    for member in little_endian_order.iter().enumerate() {
+
+        // Member comment
+        if member.1.comment.is_some() {
+            if member.0 != 0 { header_file.add_newline(); }
+            header_file.add_line(format!("    /**{0}*/", member.1.comment.as_ref().unwrap()));
         }
 
-        let member_name = pascal_to_snake_case(&member.ident);
+        let member_name = pascal_to_snake_case(&member.1.ident);
 
         header_file.add_line(format!("    {0} {1}{2} : {3};",
             bitfield_definition.backing_type.to_c_type(),
             member_name,
             spaces(longest_name - member_name.len()),
-            member.bit_size
+            member.1.bit_size
         ));
     }
 
@@ -116,19 +118,21 @@ fn output_bitfield(header_file: &mut OutputFile, bitfield_definition: &BitfieldD
     }
 
     // Print bits
-    for member in &big_endian_order {
-        if member.comment.is_some() {
-            // Member comment
-            header_file.add_line(format!("    /**{0}*/", member.comment.as_ref().unwrap()));
+    for member in big_endian_order.iter().enumerate() {
+
+        // Member comment
+        if member.1.comment.is_some() {
+            if member.0 != 0 { header_file.add_newline(); }
+            header_file.add_line(format!("    /**{0}*/", member.1.comment.as_ref().unwrap()));
         }
 
-        let member_name: String = pascal_to_snake_case(&member.ident);
+        let member_name: String = pascal_to_snake_case(&member.1.ident);
 
         header_file.add_line(format!("    {0} {1}{2} : {3};",
             bitfield_definition.backing_type.to_c_type(),
             member_name,
             spaces(longest_name - member_name.len()),
-            member.bit_size
+            member.1.bit_size
         ));
     }
 
@@ -197,12 +201,13 @@ fn output_enum(header_file: &mut OutputFile, enum_definition: &EnumDefinition) {
 
         // Member comment
         if enum_member.comment.is_some() {
+            if i != 0 { header_file.add_newline(); }
             header_file.add_line(format!("    /**{0}*/", enum_member.comment.as_ref().unwrap()));
         }
 
         let member_name: String = pascal_to_uppercase(&enum_member.ident);
         let ending: String = match i == enum_definition.members.len() - 1 {
-            false => String::from(",\n"),
+            false => String::from(","),
             true  => String::from("")
         };
 
@@ -235,16 +240,13 @@ fn output_struct(header_file: &mut OutputFile, struct_definition: &StructDefinit
 
         // Member comment
         if struct_member.comment.is_some() {
+            if i != 0 { header_file.add_newline(); }
             header_file.add_line(format!("    /**{0}*/", struct_member.comment.as_ref().unwrap()));
         }
 
         let member_name: String = pascal_to_snake_case(&struct_member.ident);
 
         header_file.add_line(format!("    {0};", struct_member.field_type.create_c_variable(&member_name)));
-
-        if i < sorted_member_list.len() - 1 {
-            header_file.add_newline();
-        }
     }
 
     header_file.add_line(format!("}} {0}_t;", struct_name));
