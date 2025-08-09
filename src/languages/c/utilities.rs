@@ -1,11 +1,10 @@
-use crate::{
-    Configurations,
-    types::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink }};
+use crate::{ Configurations, types::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink }, RuneFileDescription };
 use std::{ fs::{ File, remove_file }, io::Write, path::Path };
 
 // String helper functions
 // ————————————————————————
 
+/// Output the amount of ' ' spaces
 pub fn spaces(amount: usize) -> String {
     let mut spaces = String::with_capacity(0x40);
 
@@ -16,6 +15,7 @@ pub fn spaces(amount: usize) -> String {
     spaces
 }
 
+/// Convert NamedVariable to named_variable
 pub fn pascal_to_snake_case(pascal: &String) -> String {
     let mut snake: String = String::with_capacity(0x40);
 
@@ -31,6 +31,7 @@ pub fn pascal_to_snake_case(pascal: &String) -> String {
     snake
 }
 
+/// Convert NamedVariable to NAMED_VARIABLE
 pub fn pascal_to_uppercase(pascal: &String) -> String {
     let mut uppecase: String = String::with_capacity(0x40);
 
@@ -44,6 +45,76 @@ pub fn pascal_to_uppercase(pascal: &String) -> String {
     }
 
     uppecase
+}
+
+// C Configuration
+// ————————————————
+
+pub struct CConfigurations {
+    // Configurations
+    pub compiler_configurations: Configurations,
+
+    // Data definitions
+    pub field_size_type_size:    usize,
+    pub field_offset_type_size:  usize,
+    pub message_size_type_size:  usize,
+    pub parser_index_type_size:  usize,
+}
+
+impl CConfigurations {
+    pub fn parse(file_descriptions: &Vec<RuneFileDescription>, configurations: &Configurations) -> CConfigurations {
+        let mut amount_of_messages:   usize = 0;
+        let mut largest_message_size: usize = 0;
+
+        // Get the largest overall message size, and the amount of messages
+        for file in file_descriptions {
+
+            // Add struct definition amount to amount of messages
+            amount_of_messages += file.definitions.structs.len();
+
+            for struct_definition in &file.definitions.structs {
+
+                let estimated_size: usize = struct_definition.estimate_size(configurations);
+
+                if estimated_size > largest_message_size {
+                    largest_message_size = estimated_size;
+                }
+            }
+        };
+
+        // println!("Out of {0} messages, the largest one found was estimated at {1} bytes\n", amount_of_messages, largest_message_size);
+
+        // Get the unsigned integer size needed to describe the number of messages
+        let parser_index_type_size: usize = match amount_of_messages {
+            0x00000000..=0x000000FF => 1,
+            0x00000100..=0x0000FFFF => 2,
+            0x00010000..=0xFFFFFFFF => 4,
+            // 8 byte option is probably not needed, but add anyway...
+            _                       => 8
+        };
+
+        // Field size type and offset size type will be based on the largest message size
+        let message_size_type_size: usize = match largest_message_size {
+            0 => panic!("Largest message had size 0! Something went horribly wrong!"),
+            0x00000001..=0x000000FF => 1,
+            0x00000100..=0x0000FFFF => 2,
+            0x00010000..=0xFFFFFFFF => 4,
+            // 8 byte option is probably not needed, but add anyway...
+            _                       => 8
+        };
+
+        let field_size_type_size:   usize = message_size_type_size;
+        let field_offset_type_size: usize = message_size_type_size;
+
+
+        CConfigurations {
+            compiler_configurations: configurations.clone(),
+            field_size_type_size,
+            field_offset_type_size,
+            message_size_type_size,
+            parser_index_type_size
+        }
+    }
 }
 
 // Field type methods

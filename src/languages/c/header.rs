@@ -1,7 +1,6 @@
 use crate::types::{ BitfieldDefinition, BitfieldMember, DefineDefinition, DefineValue, EnumDefinition, StructDefinition, StructMember };
 use crate::RuneFileDescription;
 use crate::languages::c::utilities::{ OutputFile, pascal_to_snake_case, pascal_to_uppercase, spaces };
-use std::fmt::format;
 use std::path::Path;
 
 /// Outputs a bitfield definition into the header file
@@ -53,7 +52,7 @@ fn output_bitfield(header_file: &mut OutputFile, bitfield_definition: &BitfieldD
     // ————————————————————
 
     header_file.add_line(String::from("#if defined __LITTLE_ENDIAN__"));
-    header_file.add_line(format!("typedef struct RUNIC_BITS {0} {{", bitfield_name));
+    header_file.add_line(format!("typedef struct RUNIC_BITFIELD {0} {{", bitfield_name));
 
     // Comment
     if bitfield_definition.comment.is_some() {
@@ -97,7 +96,7 @@ fn output_bitfield(header_file: &mut OutputFile, bitfield_definition: &BitfieldD
     // —————————————————
 
     header_file.add_line(String::from("#elif defined __BIG_ENDIAN__"));
-    header_file.add_line(format!("typedef struct RUNIC_BITS {0} {{", bitfield_name));
+    header_file.add_line(format!("typedef struct RUNIC_BITFIELD {0} {{", bitfield_name));
 
     // Comment
     if bitfield_definition.comment.is_some() {
@@ -183,7 +182,7 @@ fn output_enum(header_file: &mut OutputFile, enum_definition: &EnumDefinition) {
     let enum_name: String = pascal_to_snake_case(&enum_definition.name);
     let enum_type: String = enum_definition.backing_type.to_c_type();
 
-    header_file.add_line(format!("typedef enum {0}: {1} {{", enum_name, enum_type));
+    header_file.add_line(format!("typedef enum RUNIC_ENUM {0}: {1} {{", enum_name, enum_type));
 
     let mut longest_member_name: usize = 0;
 
@@ -228,7 +227,7 @@ fn output_struct(header_file: &mut OutputFile, struct_definition: &StructDefinit
 
     let struct_name: String = pascal_to_snake_case(&struct_definition.name);
 
-    header_file.add_line(format!("typedef struct RUNIC {0} {{", struct_name));
+    header_file.add_line(format!("typedef struct RUNIC_STRUCT {0} {{", struct_name));
 
     // Sorted list --> Then use sorted list instead of other one
     let sorted_member_list: Vec<StructMember> = struct_definition.sort_members();
@@ -315,7 +314,7 @@ fn output_struct_initializer(output_file: &mut OutputFile, struct_definition: &S
     output_file.add_newline();
 }
 
-pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool) {
+pub fn output_header(file: RuneFileDescription, output_path: &Path) {
 
     // Print disclaimers. Requires C23 compliant compiler
     //
@@ -334,20 +333,6 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool
     // <stdint.h>
     //
     // —————————————————————————————————————————————————
-
-    // Packed to be used in structs if activated
-    // enums to be type-defined
-
-    // String for optional packing
-    let runic_string: String = match packed {
-        true  => String::from("__attribute__((packed))"),
-        false => String::from("")
-    };
-
-    let runic_bits_string: String = match packed {
-        true  => String::from("RUNIC"),
-        false => String::from("__attribute__((packed))")
-    };
 
     let h_file_string: String = format!("{0}/{1}.rune.h", output_path.to_str().unwrap(), file.file_name);
 
@@ -378,6 +363,10 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool
     header_file.add_line(format!("#include <stdint.h>"));
     header_file.add_newline();
 
+    // Include Runic Definitions
+    header_file.add_line(format!("#include \"runic_definitions.h\""));
+    header_file.add_newline();
+
     if !file.definitions.includes.is_empty() {
         // Print out includes
         for include_definition in file.definitions.includes {
@@ -387,17 +376,6 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path, packed: bool
         // Separation line
         header_file.add_newline();
     }
-
-    // Runic define
-    // —————————————
-
-    // Currently used for the packing setting, and in the future might be used for other settings
-    header_file.add_line(format!("#define RUNIC {0}{1}", spaces(!file.definitions.bitfields.is_empty() as usize * 5), runic_string));
-    match file.definitions.bitfields.is_empty() {
-        false => { header_file.add_line(format!("#define RUNIC_BITS {0}", runic_bits_string)); },
-        true  => ()
-    }
-    header_file.add_newline();
 
     // User defines
     // —————————————

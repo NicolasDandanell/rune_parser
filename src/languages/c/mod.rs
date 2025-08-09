@@ -1,18 +1,21 @@
-pub mod c;
-pub mod header;
-pub mod source;
-pub mod utilities;
+mod header;
+mod runic_definitions;
+mod source;
+mod utilities;
 
-pub use c::output_c_files;
-pub use crate::Configurations;
+use crate::languages::c::{ utilities::CConfigurations, header::output_header, runic_definitions::output_runic_definitions };
+use crate::{ Configurations, RuneFileDescription };
+use std::path::Path;
 
-pub struct CConfigurations {
-    // Configurations
-    pub compiler_configurations: Configurations,
+pub fn output_c_files(file_descriptions: Vec<RuneFileDescription>, output_path: &Path, configurations: Configurations) {
 
-    // Data definitions
-    pub field_size_type_size:    usize,
-    pub field_offset_type_size:  usize,
-    pub message_size_type_size:  usize,
-    pub parser_index_type_size:  usize,
+    let c_configurations: CConfigurations = CConfigurations::parse(&file_descriptions, &configurations);
+
+    // Create runic definitions file
+    output_runic_definitions(&c_configurations, output_path);
+
+    for file in file_descriptions {
+        // Create header file
+        output_header(file, output_path);
+    }
 }
