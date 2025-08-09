@@ -1,4 +1,6 @@
-use crate::types::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink };
+use crate::{
+    Configurations,
+    types::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink }};
 use std::{ fs::{ File, remove_file }, io::Write, path::Path };
 
 // String helper functions
@@ -276,12 +278,57 @@ impl StructDefinition {
             }
         }
 
+        // Size sort unaligned structs
+        aligned_1.sort_by(|a, b| b.c_size().cmp(&a.c_size()) );
+
         full_list.append(&mut aligned_8);
         full_list.append(&mut aligned_4);
         full_list.append(&mut aligned_2);
         full_list.append(&mut aligned_1);
 
         full_list
+    }
+
+    pub fn estimate_size(&self, configurations: &Configurations) -> usize {
+        // println!("Estimating size of {0}", struct_definition.name);
+
+        let struct_list: Vec<StructMember> = match configurations.sort {
+            true  => self.sort_members(),
+            false => self.members.clone()
+        };
+
+        // Calculate padding
+        let mut total_size:  usize = 0;
+
+        for member in &struct_list {
+            // println!("   {0} - {1} bytes", member.ident, member.c_size());
+
+            // Assume 8 byte alignment target for items > 4 bytes for worst case scenario
+            let member_alignment_size: usize = match member.c_size() {
+                // Members with a size 0 can be skipped
+                0     => continue,
+                1     => 1,
+                2     => 2,
+                3..=4 => 4,
+                // Assume that anything bigger than 4 bytes needs to align to 8 bytes as a worst case scenario (64 bit targets)
+                5..   => 8
+            };
+
+            // Estimate padding if packing disabled, and member does not align to the worst case 8 bytes (64 bit targets)
+            if !configurations.pack && (total_size % member_alignment_size) != 0 {
+                // Add padding
+                let padding: usize = member_alignment_size - (total_size % member_alignment_size);
+                total_size += padding;
+                // println!("    > Estimated {0} bytes of padding for member \"{1}\"", padding, member.ident);
+            }
+
+
+            total_size += member.c_size();
+        }
+
+        // println!("   = Estimated total - {0} bytes\n", total_size);
+
+        total_size
     }
 }
 

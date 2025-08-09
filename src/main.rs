@@ -28,9 +28,29 @@ struct Args {
     #[arg(long, short = 'o')]
     output_folder: String,
 
-    /// Whether to pack (remove padding) from outputted sources
-    #[arg(long, short = 'p')]
-    pack: bool
+    /// Whether to pack (remove padding) from outputted sources - Defaults to false
+    #[arg(long, short = 'p', default_value = "false")]
+    pack: bool,
+
+    /// Whether to store all Rune data in a specific section. By default no section is declared
+    #[arg(long, short = 'd')]
+    data_section: Option<String>,
+
+    /// Whether to sort struct field placement to optimize alignment - Defaults to true
+    #[arg(long, short = 's', default_value = "true")]
+    sort: bool
+}
+
+#[derive(Debug, Clone)]
+pub struct Configurations {
+    /// Whether or not to pack data structures
+    pack: bool,
+
+    /// Whether to declare all rune data in a specific section - Default to None
+    section: Option<String>,
+
+    /// Whether to size sort structs to optimize packing - Defaults to true
+    sort: bool
 }
 
 // Supported programming languages
@@ -125,10 +145,14 @@ fn main() -> Result<(), usize> {
 
     let args: Args = Args::parse();
 
-    let input_path: &Path         = Path::new(args.rune_folder.as_str());
-    let output_path: &Path        = Path::new(args.output_folder.as_str());
-    let output_language: Language = Language::from_string(args.language);
-    let pack_output: bool         = args.pack;
+    let input_path: &Path              = Path::new(args.rune_folder.as_str());
+    let output_path: &Path             = Path::new(args.output_folder.as_str());
+    let output_language: Language      = Language::from_string(args.language);
+    let configurations: Configurations = Configurations {
+        pack:    args.pack,
+        section: args.data_section,
+        sort:    args.sort
+    };
 
     // Validate arguments
     // ———————————————————
@@ -246,7 +270,7 @@ fn main() -> Result<(), usize> {
     // ————————————————————
 
     match output_language {
-        Language::C => output_c_files(definitions_list, output_path, pack_output),
+        Language::C => output_c_files(definitions_list, output_path, configurations),
         Language::Unsupported => unreachable!()
     }
 
