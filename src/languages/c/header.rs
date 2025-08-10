@@ -314,7 +314,7 @@ fn output_struct_initializer(output_file: &mut OutputFile, struct_definition: &S
     output_file.add_newline();
 }
 
-pub fn output_header(file: RuneFileDescription, output_path: &Path) {
+pub fn output_header(file: &RuneFileDescription, output_path: &Path) {
 
     // Print disclaimers. Requires C23 compliant compiler
     //
@@ -369,7 +369,7 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path) {
 
     if !file.definitions.includes.is_empty() {
         // Print out includes
-        for include_definition in file.definitions.includes {
+        for include_definition in &file.definitions.includes {
             header_file.add_line(format!("#include \"{0}.rune.h\"", include_definition.file));
         }
 
@@ -381,7 +381,7 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path) {
     // —————————————
 
     if !file.definitions.defines.is_empty() {
-        for define in file.definitions.defines {
+        for define in &file.definitions.defines {
             output_define(&mut header_file, &define);
         }
         header_file.add_newline();
@@ -391,14 +391,14 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path) {
     // ——————
 
     // Print all enum definitions
-    for enum_definition in file.definitions.enums {
+    for enum_definition in &file.definitions.enums {
         output_enum(&mut header_file, &enum_definition);
     }
 
     // Bitfields
     // ——————————
 
-    for bitfield_definition in file.definitions.bitfields {
+    for bitfield_definition in &file.definitions.bitfields {
         output_bitfield(&mut header_file, &bitfield_definition);
     }
 
@@ -408,7 +408,7 @@ pub fn output_header(file: RuneFileDescription, output_path: &Path) {
     if !file.definitions.structs.is_empty() {
 
         // Print out structs
-        for struct_definition in file.definitions.structs {
+        for struct_definition in &file.definitions.structs {
             output_struct(&mut header_file, &struct_definition);
 
             // Add struct initializer

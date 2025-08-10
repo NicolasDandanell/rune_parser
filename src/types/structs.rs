@@ -19,11 +19,11 @@ pub struct StructMember {
 #[derive(Debug, Clone)]
 pub enum UserDefinitionLink {
     NoLink,
-    // Copy value of the bitfield defintion
+    // Clone value of the bitfield definition
     BitfieldLink(BitfieldDefinition),
-    // Copy value of the enum definition
+    // Clone value of the enum definition
     EnumLink(EnumDefinition),
-    // Copy value of the struct definition
+    // Clone value of the struct definition
     StructLink(StructDefinition)
 }
 
@@ -35,28 +35,35 @@ pub enum ArraySize {
 
 #[derive(Debug, Clone)]
 pub enum FieldSlot {
-    NamedSlot(u64),
+    NamedSlot(usize),
     VerificationField,
 }
 
 #[derive(Debug, Clone)]
 pub enum FieldType {
+    /// Used for skipped fields
+    Empty,
+
+    // 1 byte primitives
     Boolean,
     UByte,
     Byte,
 
+    // 2 byte primitives
     UShort,
     Short,
 
+    // 4 byte primitives
     Float,
     UInt,
     Int,
 
+    // 8 byte primitives
     Double,
     ULong,
     Long,
 
+    // Arrays and user definitions
     Array(Box<FieldType>, ArraySize),
-
     UserDefined(String),
 }

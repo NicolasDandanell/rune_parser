@@ -3,8 +3,6 @@ use crate::RuneFileDescription;
 
 pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
     println!("Parsing define statements");
-    println!("——————————————————————————");
-    println!("");
 
     let mut defines_list: Vec<DefineDefinition> = Vec::with_capacity(0x40);
 
@@ -59,9 +57,6 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
 pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) {
 
     println!("Linking user definitions");
-    println!("—————————————————————————");
-    println!("");
-
 
     // Room for 64 user definitions should be plenty to begin with
     // let mut user_definition_list: Vec<(&String, &mut UserDefinitionLink)> = Vec::with_capacity(0x40);
@@ -82,11 +77,7 @@ pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) {
                 // Check if struct member is user defined
                 match &member.field_type {
                     FieldType::UserDefined(name) => {
-                        println!("Found user defined type '{0}'", name);
-
                         member.user_definition_link = find_definition(name, &immutable_reference);
-
-                        println!("");
                     },
                     _ => ()
                 }
@@ -105,7 +96,6 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
 
             // Check if bitfield matches the identifier
             if identifier == bitfield_definition.name.as_str() {
-                println!("    Found bitfield match for definition '{0}'", identifier);
                 return UserDefinitionLink::BitfieldLink(bitfield_definition.clone())
             }
         }
@@ -115,7 +105,6 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
 
             // Check if enum matches the identifier
             if identifier == enum_definition.name.as_str() {
-                println!("    Found enum match for definition '{0}'", identifier);
                 return UserDefinitionLink::EnumLink(enum_definition.clone())
             }
         }
@@ -141,12 +130,10 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
                     }
                 }
 
-                println!("    Found struct match for definition '{0}'", identifier);
                 return UserDefinitionLink::StructLink(definition_copy.clone())
             }
         }
     }
 
-    println!("    Found no user definition for identifier '{0}'!", identifier);
-    return UserDefinitionLink::NoLink
+    panic!("Found no user definition for identifier '{0}'!", identifier);
 }

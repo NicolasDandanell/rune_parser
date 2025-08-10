@@ -1,4 +1,4 @@
-use crate::{ Configurations, types::{ ArraySize, DefineValue, FieldType, StructDefinition, StructMember, UserDefinitionLink }, RuneFileDescription };
+use crate::{ types::{ ArraySize, DefineValue, FieldSlot, FieldType, StructDefinition, StructMember, UserDefinitionLink }, Configurations, RuneFileDescription };
 use std::{ fs::{ File, remove_file }, io::Write, path::Path };
 
 // String helper functions
@@ -141,7 +141,9 @@ impl FieldType {
             FieldType::UserDefined(string) => format!("{0}_t", pascal_to_snake_case(string)),
 
             // This will return the string of the underlying type
-            FieldType::Array(underlying_type, _) => underlying_type.to_c_type()
+            FieldType::Array(underlying_type, _) => underlying_type.to_c_type(),
+
+            FieldType::Empty => panic!("Empty fields have no type!")
         }
     }
 
@@ -173,6 +175,8 @@ impl FieldType {
 
                 format!("{0} {1}{2}[{3}]", field_type.to_c_type(), spaces(spacing), name, array_size)
             }
+
+            FieldType::Empty => panic!("Cannot create an empty field!")
         }
     }
 
@@ -211,6 +215,7 @@ impl FieldType {
             FieldType::Double                     => String::from("0.0"),
             FieldType::Long                       => String::from("0"),
             FieldType::ULong                      => String::from("0"),
+            FieldType::Empty                      => panic!("Cannot initialize an empty field!"),
             FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name)),
             FieldType::Array(field_type, array_size) =>
                 format!("{{ [0 ... {0}] = {1} }}",
@@ -239,8 +244,9 @@ impl FieldType {
                         FieldType::Double            => String::from("0.0"),
                         FieldType::Long              => String::from("0"),
                         FieldType::ULong             => String::from("0"),
+                        FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name)),
                         FieldType::Array(_, _)       => panic!("Nested arrays are not currently supported"),
-                        FieldType::UserDefined(name) => format!("{0}_INIT", pascal_to_uppercase(&name))
+                        FieldType::Empty             => panic!("Cannot initialize an empty field!")
                     }
             )
         }
@@ -251,6 +257,46 @@ impl FieldType {
 // ——————————————————————
 
 impl StructMember {
+    pub fn index_empty(index: usize) -> StructMember {
+        // Check if value is positive and within the legal values (0 to and including 31)
+        let field_index = match index {
+            // Legal values
+            0..32 => FieldSlot::NamedSlot(index as usize),
+            // Higher than legal values
+            32..  => panic!("Field index cannot have a value higher than 31!")
+        };
+
+        StructMember {
+            ident:                String::from("(empty)"),
+            field_type:           FieldType::Empty,
+            field_slot:           field_index,
+            user_definition_link: UserDefinitionLink::NoLink,
+            comment:              None
+
+        }
+    }
+
+    pub fn c_size_definition(&self) -> String {
+        let size_string: String = match &self.field_type {
+            FieldType::UserDefined(type_name) => format!("sizeof({0}_t)", pascal_to_snake_case(&type_name)),
+            FieldType::Array(array_type, array_size) => {
+                let type_string: String = match &(**array_type) {
+                    FieldType::Array(_, _) => panic!("Nested arrays are not supported!"),
+                    FieldType::UserDefined(name) => format!("sizeof({0}_t)", pascal_to_snake_case(&name)),
+                    _ => format!("sizeof({0})", array_type.to_c_type())
+                };
+
+                match array_size {
+                    ArraySize::UserDefinition(define) => format!("({0} * {1})", type_string, define.identifier),
+                    ArraySize::NumericValue(size) => format!("({0} * {1})", type_string, size)
+                }
+            },
+            FieldType::Empty => String::from("0"),
+            _ => format!("sizeof({0})", self.field_type.to_c_type())
+        };
+        size_string
+    }
+
     pub fn c_size(&self) -> usize {
         match &self.field_type {
 

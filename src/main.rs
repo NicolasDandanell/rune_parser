@@ -201,7 +201,6 @@ fn main() -> Result<(), usize> {
     for i in 0..rune_file_list.len() {
         println!("    {0}", rune_file_list[i]);
     }
-    println!("");
 
     // Process rune files
     // ———————————————————
