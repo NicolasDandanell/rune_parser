@@ -3,6 +3,7 @@ description = "A .rune file parser which generates a `RuneFileDescription` parsi
 edition = "2021"
 license = "MIT"
 name = "rune_parser"
+readme = "README.MD"
 repository = "https://github.com/NicolasDandanell/rune_parser"
 version = "0.1.0"
 
