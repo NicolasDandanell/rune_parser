@@ -1,7 +1,11 @@
 [package]
-name = "rune_parser"
-version = "0.1.0"
+description = "A .rune file parser which generates a `RuneFileDescription` parsing tree, and which in turn can be used to generate source code for Rune messages"
 edition = "2021"
+license = "MIT"
+license-file = "LICENSE"
+name = "rune_parser"
+repository = "https://github.com/NicolasDandanell/rune_parser"
+version = "0.1.0"
 
 [dependencies]
 comment-parser = "0.1.0"
