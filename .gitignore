@@ -1,5 +1,2 @@
 target
-test_rune_files
-test_output
 Cargo.lock
-test.sh

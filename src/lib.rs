@@ -1,8 +1,8 @@
-mod types;
-mod parser;
-mod post_processing;
-mod scanner;
-mod validation;
+pub mod types;
+pub mod parser;
+pub mod post_processing;
+pub mod scanner;
+pub mod validation;
 
 use post_processing::{ link_user_definitions, parse_define_statements };
 use scanner::Scanner;

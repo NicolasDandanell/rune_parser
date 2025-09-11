@@ -21,7 +21,7 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
 
                 if index_list.contains(&index) {
                     if (index == 0) && (has_verification) {
-                        panic!("Cannot have a VerificationField and a field with index 0! This is due to VerificationField using the value 0 to ensure it's always encoded first");
+                        panic!("Cannot have a VerificationField and a field with index 0! This is due to VerificationField being an alias for index 0");
                     } else {
                         panic!("Cannot have multiple fields with the same index! Found multiple instances of index: {0}", index);
                     }
