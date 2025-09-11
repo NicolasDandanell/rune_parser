@@ -16,7 +16,14 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
             for member in &struct_definition.members {
                 let index: u8 = match member.field_slot {
                     FieldSlot::NamedSlot(value) => value as u8,
-                    FieldSlot::VerificationField       => { has_verification = true; 0 }
+                    FieldSlot::VerificationField       => {
+                        if has_verification {
+                            panic!("Cannot have more than one VerificationField!");
+                        } else {
+                            has_verification = true;
+                            0
+                        }
+                    }
                 };
 
                 if index_list.contains(&index) {
