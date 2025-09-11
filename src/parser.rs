@@ -5,6 +5,7 @@ use std::iter::{Iterator, Peekable};
 
 type ItemType = Spanned<Token>;
 
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum ParsingError {
     UnexpectedToken(ItemType),
@@ -235,12 +236,12 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     let field_slot_token = tokens.expect_next()?;
                     let field_slot: FieldSlot = match &field_slot_token.item {
                         Token::IntegerLiteral(i) => {
-                            // Check if value is positive and within the legal values (0 to and including 31)
+                            // Check if value is positive and within the legal values (0 to and not including 32)
                             match *i {
                                 // Legal values
-                                0..31 => FieldSlot::NamedSlot(*i as usize),
+                                0..32 => FieldSlot::NamedSlot(*i as usize),
                                 // Higher than legal values
-                                31..  => panic!("Field index cannot have a value higher than 30!"),
+                                32..  => panic!("Field index cannot have a value higher than 30!"),
                                 // Negative values
                                 ..0   => panic!("Field indexes cannot have negative values!")
                             }

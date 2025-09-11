@@ -1,12 +1,14 @@
-pub mod types;
-pub mod parser;
-pub mod post_processing;
-pub mod scanner;
+mod types;
+mod parser;
+mod post_processing;
+mod scanner;
+mod validation;
 
 use post_processing::{ link_user_definitions, parse_define_statements };
 use scanner::Scanner;
 use std::{ fs::ReadDir, path::Path, process::exit };
 use types::Definitions;
+use validation::validate_struct_indexes;
 
 const ALLOCATION_SIZE: usize = 0x40;
 
@@ -110,7 +112,7 @@ pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, 
     // Validate parsed data structures
     // ————————————————————————————————
 
-    // To be implemented...
+    validate_struct_indexes(&definitions_list);
 
     // Return list
     // ————————————

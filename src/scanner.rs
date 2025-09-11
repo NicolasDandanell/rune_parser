@@ -117,6 +117,7 @@ pub enum ScanningProduct {
     Token(Spanned<Token>),
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum ScanningError {
     UnexpectedCharacter(Spanned<char>),
