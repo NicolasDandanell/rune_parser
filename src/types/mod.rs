@@ -4,7 +4,7 @@ pub mod enums;
 pub mod includes;
 pub mod structs;
 
-pub use bitfields::{ BitfieldDefinition, BitfieldMember };
+pub use bitfields::{ BitfieldDefinition, BitfieldMember, BitSize };
 pub use defines::{ DefineDefinition, DefineValue };
 pub use enums::{ EnumDefinition, EnumMember, EnumValue };
 pub use includes::{ IncludeDefinition };

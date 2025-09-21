@@ -55,7 +55,6 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
 }
 
 pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) {
-
     println!("Linking user definitions");
 
     // Room for 64 user definitions should be plenty to begin with

@@ -107,7 +107,7 @@ pub enum Token {
     Identifier(String),
     IntegerLiteral(i64),
     FloatLiteral(f64),
-    StringLiteral(String),
+    StringLiteral(String)
 }
 
 #[derive(Debug, Clone)]

@@ -55,23 +55,52 @@ pub trait TokenSource: std::clone::Clone {
         }
     }
 
+    fn expect_bitfield_size(&mut self) -> ParsingResult<Spanned<BitSize>> {
+        let token = self.expect_next()?;
+
+        match &token.item {
+            // Parse identifier, with char first, then convert rest to decimal number
+            Token::Identifier(s) => {
+
+                let signed: bool = match s.chars().nth(0).unwrap() {
+                    'u' | 'U' => false,
+                    'i' | 'I' => true,
+                    _         => return Err(ParsingError::UnexpectedToken(token))
+                };
+
+                let size: usize = match s[1..].parse() {
+                    Err(_) => return Err(ParsingError::UnexpectedToken(token)),
+                    Ok(number) => number
+                };
+
+                let bitfield_size: BitSize = match signed {
+                    false => BitSize::Unsigned(size),
+                    true  => BitSize::Signed(size)
+                };
+
+                Ok(Spanned::new(bitfield_size, token.from, token.to))
+            },
+            _ => Err(ParsingError::UnexpectedToken(token)),
+        }
+    }
+
     fn expect_type(&mut self) -> ParsingResult<Spanned<FieldType>> {
         let token = self.expect_next()?;
         match token.item {
             Token::Identifier(s) => Ok(Spanned::new(
                 match s.as_str() {
                     "bool" => FieldType::Boolean,
-                    "u8" => FieldType::UByte,
-                    "i8" => FieldType::Byte,
-                    "u16" => FieldType::UShort,
-                    "i16" => FieldType::Short,
-                    "u32" => FieldType::UInt,
-                    "i32" => FieldType::Int,
-                    "u64" => FieldType::ULong,
-                    "i64" => FieldType::Long,
-                    "f32" => FieldType::Float,
-                    "f64" => FieldType::Double,
-                    _ => FieldType::UserDefined(s),
+                    "u8"   => FieldType::UByte,
+                    "i8"   => FieldType::Byte,
+                    "u16"  => FieldType::UShort,
+                    "i16"  => FieldType::Short,
+                    "u32"  => FieldType::UInt,
+                    "i32"  => FieldType::Int,
+                    "u64"  => FieldType::ULong,
+                    "i64"  => FieldType::Long,
+                    "f32"  => FieldType::Float,
+                    "f64"  => FieldType::Double,
+                    _      => FieldType::UserDefined(s),
                 },
                 token.from,
                 token.to,
@@ -179,11 +208,8 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                     // Bit size
                     tokens.expect_token(Token::Colon)?;
-                    let bit_size_token = tokens.expect_next()?;
-                    let bit_size = match bit_size_token.item {
-                        Token::IntegerLiteral(i) => i as usize,
-                        _ => return Err(ParsingError::UnexpectedToken(bit_size_token))
-                    };
+                    let bit_size_token: Spanned<BitSize> = tokens.expect_bitfield_size()?;
+                    let bit_size: BitSize = bit_size_token.item;
 
                     // Bit field slot
                     tokens.expect_token(Token::Equals)?;
