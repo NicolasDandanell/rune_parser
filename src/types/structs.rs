@@ -35,7 +35,13 @@ pub enum ArraySize {
 
 #[derive(Debug, Clone)]
 pub enum FieldSlot {
+    /// Used for regular fields
     NamedSlot(usize),
+
+    /// Used for lone comments
+    NoSlot,
+
+    /// Used for the verification field. Aliases to 0
     VerificationField,
 }
 
@@ -43,6 +49,12 @@ pub enum FieldSlot {
 pub enum FieldType {
     /// Used for skipped fields
     Empty,
+
+    /// Used to reserve the index for Verification Fields
+    VerificationReserve,
+
+    /// Used for adding lone comments into the struct definition
+    OrphanComment,
 
     // 1 byte primitives
     Boolean,
