@@ -9,4 +9,4 @@ version = "0.4.1"
 
 [dependencies]
 comment-parser = "0.1.0"
-regex = "1.11.2"
+regex = "1.12.2"
