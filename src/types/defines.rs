@@ -9,6 +9,7 @@ pub struct DefineDefinition {
 pub enum DefineValue {
     NoValue,
     IntegerLiteral(i64),
+    HexLiteral(u64),
     FloatLiteral(f64),
     Composite(String)
 }

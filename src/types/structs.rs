@@ -30,7 +30,8 @@ pub enum UserDefinitionLink {
 
 #[derive(Debug, Clone)]
 pub enum ArraySize {
-    NumericValue(usize),
+    DecimalValue(usize),
+    HexValue(usize),
     UserDefinition(DefineDefinition)
 }
 
