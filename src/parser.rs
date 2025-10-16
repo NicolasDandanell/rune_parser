@@ -252,7 +252,8 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     // Turn the last comment into a standalone comment
                     definitions.standalone_comments.push(
                         StandaloneCommentDefinition {
-                            comment: last_comment.unwrap()
+                            comment: last_comment.unwrap(),
+                            position: CommentPosition::Start
                         }
                     );
                 }
@@ -316,9 +317,47 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                 tokens.expect_token(Token::LeftBrace)?;
 
-                let mut members = Vec::new();
+                let mut members: Vec<EnumMember> = Vec::new();
+                let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
+
                 loop {
                     let comment = tokens.maybe_expect_comment();
+
+                    let next_type = tokens.peek().unwrap();
+
+                    if comment.is_some() {
+                        // Check for orphan comment
+                        match &next_type.item {
+                            Token::Comment(_) => /* Create orphan comment from 'comment' */ {
+                                orphan_comments.push(
+                                    StandaloneCommentDefinition {
+                                        comment: comment.unwrap().item,
+                                        position: match members.len() {
+                                            0 => CommentPosition::Start,
+                                            _ => CommentPosition::Middle(members.len())
+                                        }
+                                    }
+                                );
+
+                                continue;
+                            },
+
+                            Token::RightBrace => /* Create orphan comment from 'comment' */ {
+                                orphan_comments.push(
+                                    StandaloneCommentDefinition {
+                                        comment: comment.unwrap().item,
+                                        position: CommentPosition::End
+                                    }
+                                );
+
+                                tokens.expect_token(Token::RightBrace)?;
+                                break;
+                            },
+
+                            _ => /* Parse next item entry normally */ ()
+                        }
+                    }
+
                     let field_ident = tokens.expect_identifier()?;
 
                     tokens.expect_token(Token::Equals)?;
@@ -349,6 +388,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 definitions.enums.push(EnumDefinition {
                     name: ident.item,
                     backing_type: backing_type.item,
+                    orphan_comments: orphan_comments,
                     members,
                     comment,
                 })
@@ -364,29 +404,44 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 tokens.expect_token(Token::LeftBrace)?;
 
                 let mut members = Vec::new();
+                let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
+
                 loop {
                     let comment = tokens.maybe_expect_comment();
 
                     let next_type = tokens.peek().unwrap();
 
-                    match &next_type.item {
-                        Token::Comment(_) => /* Create orphan comment from 'comment' */ {
-                            members.push(StructMember {
-                                ident: String::new(),
-                                field_type: FieldType::OrphanComment,
-                                field_slot: FieldSlot::NoSlot,
-                                comment: comment.map(|s| s.item),
-                                user_definition_link: UserDefinitionLink::NoLink
-                            });
+                    if comment.is_some() {
+                        // Check for orphan comment
+                        match &next_type.item {
+                            Token::Comment(_) => /* Create orphan comment from 'comment' */ {
+                                orphan_comments.push(
+                                    StandaloneCommentDefinition {
+                                        comment: comment.unwrap().item,
+                                        position: match members.len() {
+                                            0 => CommentPosition::Start,
+                                            _ => CommentPosition::Middle(members.len())
+                                        }
+                                    }
+                                );
 
-                            if tokens.maybe_expect(Token::RightBrace).is_some() {
+                                continue;
+                            },
+
+                            Token::RightBrace => /* Create orphan comment from 'comment' */ {
+                                orphan_comments.push(
+                                    StandaloneCommentDefinition {
+                                        comment: comment.unwrap().item,
+                                        position: CommentPosition::End
+                                    }
+                                );
+
+                                tokens.expect_token(Token::RightBrace)?;
                                 break;
-                            }
+                            },
 
-                            continue;
-                        },
-                        Token::Identifier(_) => /* Parse next item entry normally */ (),
-                        _ => panic!("Error") // return Err(ParsingError::UnexpectedToken(tokens.expect_token(next_type.item.clone())?))
+                            _ => /* Parse next item entry normally */ ()
+                        }
                     }
 
 
@@ -436,6 +491,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 definitions.structs.push(StructDefinition {
                     name: ident.item,
                     members,
+                    orphan_comments,
                     comment,
                 })
             },

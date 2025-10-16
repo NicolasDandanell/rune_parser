@@ -23,8 +23,7 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
                             has_verification = true;
                             0
                         }
-                    },
-                    FieldSlot::NoSlot => /* Members with no "Slot" (like lone comments) can be ignored */ continue
+                    }
                 };
 
                 if index_list.contains(&index) {

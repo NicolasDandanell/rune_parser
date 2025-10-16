@@ -1,10 +1,11 @@
-use crate::types::{ BitfieldDefinition, DefineDefinition, EnumDefinition };
+use crate::types::{ BitfieldDefinition, DefineDefinition, EnumDefinition, StandaloneCommentDefinition };
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
     pub name:    String,
     pub members: Vec<StructMember>,
-    pub comment: Option<String>,
+    pub orphan_comments: Vec<StandaloneCommentDefinition>,
+    pub comment: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -38,9 +39,6 @@ pub enum FieldSlot {
     /// Used for regular fields
     NamedSlot(usize),
 
-    /// Used for lone comments
-    NoSlot,
-
     /// Used for the verification field. Aliases to 0
     VerificationField,
 }
@@ -50,11 +48,8 @@ pub enum FieldType {
     /// Used for skipped fields
     Empty,
 
-    /// Used to reserve the index for Verification Fields
+    /// Used to reserve the index for Verification Fields. Not implemented yet!
     VerificationReserve,
-
-    /// Used for adding lone comments into the struct definition
-    OrphanComment,
 
     // 1 byte primitives
     Boolean,

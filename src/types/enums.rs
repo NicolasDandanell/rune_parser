@@ -1,10 +1,11 @@
-use crate::types::FieldType;
+use crate::types::{ FieldType, StandaloneCommentDefinition };
 
 #[derive(Debug, Clone)]
 pub struct EnumDefinition {
     pub name: String,
     pub backing_type: FieldType,
     pub members: Vec<EnumMember>,
+    pub orphan_comments: Vec<StandaloneCommentDefinition>,
     pub comment: Option<String>,
 }
 
@@ -22,7 +23,7 @@ pub enum EnumValue {
 }
 
 impl EnumValue {
-    pub fn to_string(&self) -> String{
+    pub fn to_string(&self) -> String {
         match self {
             EnumValue::FloatLiteral(float)     => float.to_string(),
             EnumValue::IntegerLiteral(integer) => integer.to_string()
