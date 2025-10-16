@@ -92,6 +92,7 @@ pub trait TokenSource: std::clone::Clone {
                     "bool" => FieldType::Boolean,
                     "u8"   => FieldType::UByte,
                     "i8"   => FieldType::Byte,
+                    "char" => FieldType::Char,
                     "u16"  => FieldType::UShort,
                     "i16"  => FieldType::Short,
                     "u32"  => FieldType::UInt,

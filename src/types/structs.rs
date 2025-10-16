@@ -53,6 +53,7 @@ pub enum FieldType {
 
     // 1 byte primitives
     Boolean,
+    Char,
     UByte,
     Byte,
 
