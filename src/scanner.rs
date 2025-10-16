@@ -106,6 +106,7 @@ pub enum Token {
     Comment(String),
     Identifier(String),
     IntegerLiteral(i64),
+    HexLiteral(u64),
     FloatLiteral(f64),
     StringLiteral(String)
 }
@@ -378,32 +379,54 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
         while self.peek().unwrap().is_numeric() {
             text.push(self.advance().unwrap());
+            println!("Text now {0}", text);
         }
 
-        if self.peek().unwrap() == '.' {
-            text.push(self.advance().unwrap());
-            while self.peek().unwrap().is_numeric() {
+        match self.peek().unwrap() {
+            '.'       => {
                 text.push(self.advance().unwrap());
-            }
-            let to = self.position();
+                while self.peek().unwrap().is_numeric() {
+                    text.push(self.advance().unwrap());
+                }
+                let to = self.position();
 
-            match text.parse::<f64>() {
-                Ok(f) => Ok(ScanningProduct::Token(Spanned::new(
-                    Token::FloatLiteral(f),
-                    from,
-                    to,
-                ))),
-                Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
-            }
-        } else {
-            let to = self.position();
-            match text.parse::<i64>() {
-                Ok(i) => Ok(ScanningProduct::Token(Spanned::new(
-                    Token::IntegerLiteral(i),
-                    from,
-                    to,
-                ))),
-                Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                match text.parse::<f64>() {
+                    Ok(f) => Ok(ScanningProduct::Token(Spanned::new(
+                        Token::FloatLiteral(f),
+                        from,
+                        to,
+                    ))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                }
+            },
+
+            'x' | 'X' => {
+                text.push(self.advance().unwrap());
+                while self.peek().unwrap().is_alphanumeric() {
+                    text.push(self.advance().unwrap());
+                }
+                let to = self.position();
+
+                match u64::from_str_radix(&text.strip_prefix("0x").unwrap(), 16) {
+                    Ok(hex) => Ok(ScanningProduct::Token(Spanned::new(
+                        Token::HexLiteral(hex),
+                        from,
+                        to,
+                    ))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                }
+            },
+
+            _         => {
+                let to = self.position();
+                match i64::from_str_radix(&text, 10) {
+                    Ok(i) => Ok(ScanningProduct::Token(Spanned::new(
+                        Token::IntegerLiteral(i),
+                        from,
+                        to,
+                    ))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                }
             }
         }
     }
