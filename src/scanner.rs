@@ -91,25 +91,25 @@ impl<T> DerefMut for Spanned<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Bitfield,
+    Colon,
+    Comment(String),
+    DecimalLiteral(i64),
     Define,
     Enum,
-    Struct,
-    Include,
     Equals,
-    LeftBracket,
-    RightBracket,
+    FloatLiteral(f64),
+    Identifier(String),
+    HexLiteral(u64),
+    Include,
     LeftBrace,
+    LeftBracket,
     Redefine,
     RightBrace,
-    Colon,
+    RightBracket,
     SemiColon,
-    VerificationField,
-    Comment(String),
-    Identifier(String),
-    IntegerLiteral(i64),
-    HexLiteral(u64),
-    FloatLiteral(f64),
-    StringLiteral(String)
+    StringLiteral(String),
+    Struct,
+    Verifier
 }
 
 #[derive(Debug, Clone)]
@@ -422,7 +422,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 let to = self.position();
                 match i64::from_str_radix(&text, 10) {
                     Ok(i) => Ok(ScanningProduct::Token(Spanned::new(
-                        Token::IntegerLiteral(i),
+                        Token::DecimalLiteral(i),
                         from,
                         to,
                     ))),

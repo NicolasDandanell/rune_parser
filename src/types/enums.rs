@@ -18,7 +18,7 @@ pub struct EnumMember {
 
 #[derive(Debug, Clone)]
 pub enum EnumValue {
-    IntegerLiteral(i64),
+    DecimalLiteral(i64),
     HexLiteral(u64),
     FloatLiteral(f64)
 }
@@ -27,7 +27,7 @@ impl EnumValue {
     pub fn to_string(&self) -> String {
         match self {
             EnumValue::FloatLiteral(float)     => float.to_string(),
-            EnumValue::IntegerLiteral(integer) => integer.to_string(),
+            EnumValue::DecimalLiteral(integer) => integer.to_string(),
             EnumValue::HexLiteral(hex)         => format!("0x{0:02X}", hex)
         }
     }

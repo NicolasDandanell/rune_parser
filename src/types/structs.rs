@@ -38,10 +38,10 @@ pub enum ArraySize {
 #[derive(Debug, Clone)]
 pub enum FieldSlot {
     /// Used for regular fields
-    NamedSlot(usize),
+    Numeric(usize),
 
     /// Used for the verification field. Aliases to 0
-    VerificationField,
+    Verifier,
 }
 
 #[derive(Debug, Clone)]

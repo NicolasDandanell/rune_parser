@@ -1,7 +1,7 @@
 use crate::types::FieldSlot;
 use crate::RuneFileDescription;
 
-/// Check that two fields do not have the same field index, considering that VerificationField is an alias for index 0
+/// Check that two fields do not have the same field index, considering that verifier is an alias for index 0
 pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
 
     // Check all files for struct definitions
@@ -15,10 +15,10 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
 
             for member in &struct_definition.members {
                 let index: u8 = match member.field_slot {
-                    FieldSlot::NamedSlot(value) => value as u8,
-                    FieldSlot::VerificationField       => {
+                    FieldSlot::Numeric(value) => value as u8,
+                    FieldSlot::Verifier       => {
                         if has_verification {
-                            panic!("Cannot have more than one VerificationField!");
+                            panic!("Cannot have more than one verifier field!");
                         } else {
                             has_verification = true;
                             0
@@ -28,7 +28,7 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
 
                 if index_list.contains(&index) {
                     if (index == 0) && (has_verification) {
-                        panic!("Cannot have a VerificationField and a field with index 0! This is due to VerificationField being an alias for index 0");
+                        panic!("Cannot have a verifier field and a field with index 0! This is due to verifier being an alias for index 0");
                     } else {
                         panic!("Cannot have multiple fields with the same index! Found multiple instances of index: {0}", index);
                     }
