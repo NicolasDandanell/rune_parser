@@ -414,7 +414,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     Token::IntegerLiteral(i) => DefineValue::IntegerLiteral(*i),
                     Token::HexLiteral(h)     => DefineValue::HexLiteral(*h),
                     Token::FloatLiteral(f)   => DefineValue::FloatLiteral(*f),
-                    _ => return Err(ParsingError::UnexpectedToken(redefine_value_token)),
+                    _                        => return Err(ParsingError::UnexpectedToken(redefine_value_token)),
                 };
 
                 tokens.expect_token(Token::SemiColon)?;
