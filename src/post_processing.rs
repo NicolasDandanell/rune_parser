@@ -31,6 +31,7 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
             }
         }
     }
+
     // Check for multiple definitions of the same redefine. Only necessary if more than one item in the list
     if redefines_list.len() > 1 {
         for i in 0..(redefines_list.len() - 1) {
