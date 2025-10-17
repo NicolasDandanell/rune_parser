@@ -112,10 +112,10 @@ pub trait TokenSource: std::clone::Clone {
                 let count_token = self.expect_next()?;
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
-                    Token::IntegerLiteral(i) => ArraySize::DecimalValue(*i as usize),
+                    Token::IntegerLiteral(i) => ArraySize::IntegerValue(*i as usize),
                     Token::HexLiteral(h)     => ArraySize::HexValue(*h as usize),
                     // String will generate a user definition, which will be populated with a value in post processing
-                    Token::Identifier(s)  => ArraySize::UserDefinition(DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None } ),
+                    Token::Identifier(s)  => ArraySize::UserDefinition( DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None, redefinition: None } ),
                     _ => return Err(ParsingError::UnexpectedToken(count_token)),
                 };
 
@@ -272,6 +272,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                 let comment = last_comment.take();
 
+                // Get define token
                 tokens.expect_next()?;
 
                 // Get definition name
@@ -300,9 +301,10 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                 definitions.defines.push(
                     DefineDefinition {
-                        identifier: definition_name.item,
-                        value:      define_value,
-                        comment:    comment
+                        identifier:   definition_name.item,
+                        value:        define_value,
+                        comment:      comment,
+                        redefinition: None
                     }
                 );
             },
@@ -396,6 +398,34 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     members,
                     comment,
                 })
+            },
+
+            Token::Redefine => {
+                let comment = last_comment.take();
+
+                // Get redefine token
+                tokens.expect_next()?;
+
+                // Get definition name
+                let definition_name = tokens.expect_identifier()?;
+
+                let redefine_value_token = tokens.expect_next()?;
+                let redefine_value: DefineValue = match &redefine_value_token.item {
+                    Token::IntegerLiteral(i) => DefineValue::IntegerLiteral(*i),
+                    Token::HexLiteral(h)     => DefineValue::HexLiteral(*h),
+                    Token::FloatLiteral(f)   => DefineValue::FloatLiteral(*f),
+                    _                        => return Err(ParsingError::UnexpectedToken(redefine_value_token)),
+                };
+
+                tokens.expect_token(Token::SemiColon)?;
+
+                definitions.redefines.push(
+                    RedefineDefinition {
+                        identifier:   definition_name.item,
+                        value:        redefine_value,
+                        comment:      comment
+                    }
+                );
             },
 
             Token::Struct => {

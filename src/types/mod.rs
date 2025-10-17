@@ -6,7 +6,7 @@ pub mod standalone_comments;
 pub mod structs;
 
 pub use bitfields::{ BitfieldDefinition, BitfieldMember, BitSize };
-pub use defines::{ DefineDefinition, DefineValue };
+pub use defines::{ DefineDefinition, DefineValue, RedefineDefinition };
 pub use enums::{ EnumDefinition, EnumMember, EnumValue };
 pub use includes::{ IncludeDefinition };
 pub use standalone_comments::{ CommentPosition, StandaloneCommentDefinition };
@@ -17,6 +17,7 @@ pub use structs::{ ArraySize, FieldSlot, FieldType, StructDefinition, StructMemb
 pub struct Definitions {
     pub bitfields:           Vec<BitfieldDefinition>,
     pub defines:             Vec<DefineDefinition>,
+    pub redefines:           Vec<RedefineDefinition>,
     pub enums:               Vec<EnumDefinition>,
     pub includes:            Vec<IncludeDefinition>,
     pub standalone_comments: Vec<StandaloneCommentDefinition>,
@@ -28,6 +29,7 @@ impl Definitions {
         Self {
             bitfields:           Default::default(),
             defines:             Default::default(),
+            redefines:           Default::default(),
             enums:               Default::default(),
             includes:            Default::default(),
             standalone_comments: Default::default(),
