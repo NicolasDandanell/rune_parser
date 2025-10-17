@@ -99,6 +99,7 @@ pub enum Token {
     LeftBracket,
     RightBracket,
     LeftBrace,
+    Redefine,
     RightBrace,
     Colon,
     SemiColon,
@@ -188,9 +189,10 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         match what.to_owned().to_lowercase().as_str() {
             "bitfield" => Some(Token::Bitfield),
             "define"   => Some(Token::Define),
-            "struct"   => Some(Token::Struct),
             "enum"     => Some(Token::Enum),
             "include"  => Some(Token::Include),
+            "redefine" => Some(Token::Redefine),
+            "struct"   => Some(Token::Struct),
             _          => None,
         }
     }
@@ -379,7 +381,6 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
         while self.peek().unwrap().is_numeric() {
             text.push(self.advance().unwrap());
-            println!("Text now {0}", text);
         }
 
         match self.peek().unwrap() {

@@ -1,23 +1,71 @@
-use crate::types::{ ArraySize, FieldType, DefineDefinition, DefineValue, UserDefinitionLink };
+use crate::types::{ ArraySize, DefineDefinition, DefineValue, FieldType, RedefineDefinition, UserDefinitionLink };
 use crate::RuneFileDescription;
 
 pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
     println!("Parsing define statements");
 
-    let mut defines_list: Vec<DefineDefinition> = Vec::with_capacity(0x40);
+    let mut defines_list: Vec<DefineDefinition>     = Vec::with_capacity(0x40);
+    let mut redefines_list: Vec<RedefineDefinition> = Vec::with_capacity(0x40);
 
     // Create a list of all user defines, and store in a list
     for file in definitions.clone() {
         for definition in &file.definitions.defines {
             defines_list.push(definition.clone());
         }
+
+        for redefinition in &file.definitions.redefines {
+            redefines_list.push(redefinition.clone());
+        }
     }
 
-    // So far, array sizes are the only valid place to use define values
-    // Check all struct fields for array members, and check if their size is defined by a UserDefinition
+    // Check for duplicates
+    // —————————————————————
+
+    // Check for multiple definitions of the same define. Only necessary if more than one item in the list
+    if defines_list.len() > 1 {
+        for i in 0..(defines_list.len() - 1) {
+            for definition in &defines_list[(i + 1)..] {
+                if defines_list[i].identifier == definition.identifier {
+                    panic!("Found duplicate definition of {0}. Aborting parsing.", defines_list[i].identifier);
+                }
+            }
+        }
+    }
+    // Check for multiple definitions of the same redefine. Only necessary if more than one item in the list
+    if redefines_list.len() > 1 {
+        for i in 0..(redefines_list.len() - 1) {
+            for redefinition in &redefines_list[(i + 1)..] {
+                if redefines_list[i].identifier == redefinition.identifier {
+                    panic!("Multiple redefinitions of {0}! Only a single redefinition of a define is supported.", redefines_list[i].identifier);
+                }
+            }
+        }
+    }
+
+    // Process files
+    // ——————————————
+
     for file in definitions {
 
-        // Check all structs
+        // Find all definitions in the file, and check to see if there is any redefinition for it
+        for define_definition in &mut file.definitions.defines {
+
+            for i in 0..redefines_list.len() {
+
+                // Check to see if identifiers match
+                if define_definition.identifier == redefines_list[i].identifier {
+
+                    // Add redefinition to the define
+                    define_definition.redefinition = Some(redefines_list[i].clone());
+
+                    // Remove from redefines_list so we can check for orphan redefinitions after processing al files
+                    redefines_list.swap_remove(i);
+                }
+            }
+        }
+
+        // So far, array sizes are the only valid place to use define values inside Rune itself
+        // Check all struct fields for array members, and check if their size is defined by a UserDefinition
         for struct_definition in &mut file.definitions.structs {
 
             // Check all struct members
@@ -36,7 +84,8 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
                                     if user_define.identifier == definition.identifier {
                                         // Parse the value. Only integer values are valid
                                         match user_define.value {
-                                            DefineValue::IntegerLiteral(value) => definition.value = DefineValue::IntegerLiteral(value),
+                                            DefineValue::DecimalLiteral(value) => definition.value = DefineValue::DecimalLiteral(value),
+                                            DefineValue::HexLiteral(value)     => definition.value = DefineValue::HexLiteral(value),
                                             _ => panic!("Could not parse {0} into a valid integer value!", definition.identifier)
                                         }
                                     }
@@ -52,6 +101,11 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
             }
         }
     }
+
+    for orphan_redefinition in redefines_list {
+        println!("Warning: Define statement for redefinition {0} not found, so it will thus be ignored and do nothing.", orphan_redefinition.identifier);
+    }
+
 }
 
 pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) {
