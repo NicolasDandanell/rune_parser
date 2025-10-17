@@ -35,7 +35,7 @@ pub trait TokenSource: std::clone::Clone {
     fn expect_token(&mut self, token: Token) -> ParsingResult<ItemType> {
         match self.expect_next()? {
             t if *t == token => Ok(t),
-            t => Err(ParsingError::UnexpectedToken(t)),
+            t                => Err(ParsingError::UnexpectedToken(t)),
         }
     }
 
@@ -43,7 +43,7 @@ pub trait TokenSource: std::clone::Clone {
         let token = self.expect_next()?;
         match token.item {
             Token::Identifier(s) => Ok(Spanned::new(s, token.from, token.to)),
-            _ => Err(ParsingError::UnexpectedToken(token)),
+            _                    => Err(ParsingError::UnexpectedToken(token)),
         }
     }
 
@@ -51,7 +51,7 @@ pub trait TokenSource: std::clone::Clone {
         let token = self.expect_next()?;
         match token.item {
             Token::StringLiteral(s) => Ok(Spanned::new(s, token.from, token.to)),
-            _ => Err(ParsingError::UnexpectedToken(token)),
+            _                       => Err(ParsingError::UnexpectedToken(token)),
         }
     }
 
@@ -80,7 +80,7 @@ pub trait TokenSource: std::clone::Clone {
 
                 Ok(Spanned::new(bitfield_size, token.from, token.to))
             },
-            _ => Err(ParsingError::UnexpectedToken(token)),
+            _                     => Err(ParsingError::UnexpectedToken(token)),
         }
     }
 
@@ -112,11 +112,11 @@ pub trait TokenSource: std::clone::Clone {
                 let count_token = self.expect_next()?;
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
-                    Token::IntegerLiteral(i) => ArraySize::IntegerValue(*i as usize),
+                    Token::DecimalLiteral(i) => ArraySize::DecimalValue(*i as usize),
                     Token::HexLiteral(h)     => ArraySize::HexValue(*h as usize),
                     // String will generate a user definition, which will be populated with a value in post processing
-                    Token::Identifier(s)  => ArraySize::UserDefinition( DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None, redefinition: None } ),
-                    _ => return Err(ParsingError::UnexpectedToken(count_token)),
+                    Token::Identifier(s)     => ArraySize::UserDefinition( DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None, redefinition: None } ),
+                    _                        => return Err(ParsingError::UnexpectedToken(count_token)),
                 };
 
                 let rb = self.expect_token(Token::RightBracket)?;
@@ -221,7 +221,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                     tokens.expect_token(Token::Equals)?;
                     let field_slot_token = tokens.expect_next()?;
                     let field_slot = match field_slot_token.item {
-                        Token::IntegerLiteral(i) => i as usize,
+                        Token::DecimalLiteral(i) => i as usize,
                         _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
                     };
 
@@ -280,7 +280,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                 let define_value_token = tokens.expect_next()?;
                 let define_value: DefineValue = match &define_value_token.item {
-                    Token::IntegerLiteral(i) => DefineValue::IntegerLiteral(*i),
+                    Token::DecimalLiteral(i) => DefineValue::DecimalLiteral(*i),
                     Token::HexLiteral(h)     => DefineValue::HexLiteral(*h),
                     Token::FloatLiteral(f)   => DefineValue::FloatLiteral(*f),
                     _ => return Err(ParsingError::UnexpectedToken(define_value_token)),
@@ -369,7 +369,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                     let enum_value_token = tokens.expect_next()?;
                     let enum_value = match &enum_value_token.item {
-                        Token::IntegerLiteral(i) => EnumValue::IntegerLiteral(*i),
+                        Token::DecimalLiteral(i) => EnumValue::DecimalLiteral(*i),
                         Token::HexLiteral(h)     => EnumValue::HexLiteral(*h),
                         Token::FloatLiteral(f)   => EnumValue::FloatLiteral(*f),
                         _ => return Err(ParsingError::UnexpectedToken(enum_value_token)),
@@ -411,7 +411,7 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                 let redefine_value_token = tokens.expect_next()?;
                 let redefine_value: DefineValue = match &redefine_value_token.item {
-                    Token::IntegerLiteral(i) => DefineValue::IntegerLiteral(*i),
+                    Token::DecimalLiteral(i) => DefineValue::DecimalLiteral(*i),
                     Token::HexLiteral(h)     => DefineValue::HexLiteral(*h),
                     Token::FloatLiteral(f)   => DefineValue::FloatLiteral(*f),
                     _                        => return Err(ParsingError::UnexpectedToken(redefine_value_token)),
@@ -488,11 +488,11 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
                     let field_slot_token = tokens.expect_next()?;
                     let field_slot: FieldSlot = match &field_slot_token.item {
-                        Token::IntegerLiteral(i) => {
+                        Token::DecimalLiteral(i) => {
                             // Check if value is positive and within the legal values (0 to and not including 32)
                             match *i {
                                 // Legal values
-                                0..32 => FieldSlot::NamedSlot(*i as usize),
+                                0..32 => FieldSlot::Numeric(*i as usize),
                                 // Higher than legal values
                                 32..  => panic!("Field index cannot have a value higher than 30!"),
                                 // Negative values
@@ -503,13 +503,13 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                             // Check if value is within the legal values (0 to and not including 32)
                             match *h {
                                 // Legal values
-                                0..32 => FieldSlot::NamedSlot(*h as usize),
+                                0..32 => FieldSlot::Numeric(*h as usize),
                                 // Higher than legal values
                                 32..  => panic!("Field index cannot have a value higher than 30!"),
                             }
                         },
-                        Token::Identifier(s) if s == "VerificationField" => {
-                            FieldSlot::VerificationField
+                        Token::Identifier(s) if s == "verifier" => {
+                            FieldSlot::Verifier
                         },
                         _ => return Err(ParsingError::UnexpectedToken(field_slot_token)),
                     };
