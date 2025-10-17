@@ -1,12 +1,13 @@
-pub mod types;
 pub mod parser;
 pub mod post_processing;
 pub mod scanner;
+pub mod types;
 pub mod validation;
 
-use post_processing::{ link_user_definitions, parse_define_statements };
+use std::{fs::ReadDir, path::Path, process::exit};
+
+use post_processing::{link_user_definitions, parse_define_statements};
 use scanner::Scanner;
-use std::{ fs::ReadDir, path::Path, process::exit };
 use types::Definitions;
 use validation::validate_struct_indexes;
 
@@ -21,7 +22,7 @@ pub struct RuneFileDescription {
 
 #[derive(Debug)]
 pub enum RuneParserError {
-    InvalidInputPath,
+    InvalidInputPath
 }
 
 pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, RuneParserError> {
@@ -29,10 +30,13 @@ pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, 
         if !input_path.exists() {
             println!("Input path \"{0}\" does not exist!", input_path.as_os_str().to_str().unwrap());
         } else if !input_path.is_dir() {
-            println!("Input path \"{0}\" is not a directory!", input_path.as_os_str().to_str().unwrap());
+            println!(
+                "Input path \"{0}\" is not a directory!",
+                input_path.as_os_str().to_str().unwrap()
+            );
         }
 
-        return Err(RuneParserError::InvalidInputPath)
+        return Err(RuneParserError::InvalidInputPath);
     }
 
     // Get rune files from folder
@@ -45,7 +49,7 @@ pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, 
 
     if rune_file_list.is_empty() {
         println!("Could not parse any rune files from folder");
-        return Ok(Vec::new())
+        return Ok(Vec::new());
     }
 
     // Print all found files
@@ -64,40 +68,50 @@ pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, 
 
         let file = match std::fs::read_to_string(file_path) {
             Err(error) => panic!("Error in reading file to string. Got error {0}", error),
-            Ok(path)  => path
+            Ok(path) => path
         };
 
         let tokens = match Scanner::new(file.chars()).scan_all() {
             Err(e) => {
                 eprintln!("Error while scanning file {}: {:#?}", filepath, e);
                 exit(-1);
-            }
-            Ok(t) => t,
+            },
+            Ok(t) => t
         };
 
         let types: Definitions = match parser::parse_tokens(&mut tokens.into_iter().peekable()) {
             Err(e) => {
                 eprintln!("Error while parsing file {}: {:#?}", filepath, e);
                 exit(-1);
-            }
-            Ok(t) => t,
+            },
+            Ok(t) => t
         };
 
         // Get isolated file name (without .rune extension)
-        let file_name: String = file_path.file_name().unwrap().to_str().unwrap().strip_suffix(".rune").unwrap().to_string();
+        let file_name: String = file_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .strip_suffix(".rune")
+            .unwrap()
+            .to_string();
 
         // Get relative path (from input path)
-        let relative_path: String = filepath.strip_prefix(input_path.to_str().unwrap()).unwrap()
-                                            .strip_prefix("/").unwrap()
-                                            .strip_suffix(file_path.file_name().unwrap().to_str().unwrap()).unwrap().to_string();
+        let relative_path: String = filepath
+            .strip_prefix(input_path.to_str().unwrap())
+            .unwrap()
+            .strip_prefix("/")
+            .unwrap()
+            .strip_suffix(file_path.file_name().unwrap().to_str().unwrap())
+            .unwrap()
+            .to_string();
 
-        definitions_list.push(
-            RuneFileDescription {
-                relative_path: relative_path,
-                file_name:     file_name,
-                definitions:   types,
-            }
-        );
+        definitions_list.push(RuneFileDescription {
+            relative_path: relative_path,
+            file_name:     file_name,
+            definitions:   types
+        });
     }
 
     // Post-processing
@@ -121,35 +135,47 @@ pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, 
 }
 
 fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) {
-
     let folder_iterator: ReadDir = match folder_path.read_dir() {
-        Err(error)  => panic!("Could not read \"{0}\" directory. Got error {1}", folder_path.as_os_str().to_str().unwrap(), error),
-        Ok(value) =>  value
+        Err(error) => panic!(
+            "Could not read \"{0}\" directory. Got error {1}",
+            folder_path.as_os_str().to_str().unwrap(),
+            error
+        ),
+        Ok(value) => value
     };
 
     for item in folder_iterator {
         match item {
-            Err(error) => println!("Got an error {0} in one of the items in \"{1}\" directory", error, folder_path.as_os_str().to_str().unwrap()),
+            Err(error) => println!(
+                "Got an error {0} in one of the items in \"{1}\" directory",
+                error,
+                folder_path.as_os_str().to_str().unwrap()
+            ),
             Ok(item) => {
                 match item.file_type() {
-                    Err(error) => println!("Got error {0} in getting file type of file \"{1}\"", error, item.file_name().to_str().unwrap()),
+                    Err(error) => println!(
+                        "Got error {0} in getting file type of file \"{1}\"",
+                        error,
+                        item.file_name().to_str().unwrap()
+                    ),
                     Ok(file_type) => {
                         if file_type.is_dir() {
-
                             // Subfolder
                             // ——————————
 
                             println!("Found subdirectory named {0:?}", item.file_name());
 
-                            let subfolder_string: String = format!("{0}/{1}", folder_path.as_os_str().to_str().unwrap(), item.file_name().to_str().unwrap());
+                            let subfolder_string: String = format!(
+                                "{0}/{1}",
+                                folder_path.as_os_str().to_str().unwrap(),
+                                item.file_name().to_str().unwrap()
+                            );
 
                             let subfolder_path: &Path = Path::new(&subfolder_string);
 
                             // Recursively call function to parse files in subfolder
                             get_rune_files(subfolder_path, &mut rune_file_list);
-
                         } else if file_type.is_file() {
-
                             // Rune file
                             // ——————————
 
@@ -158,7 +184,6 @@ fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) {
                             if file_string.ends_with(".rune") {
                                 rune_file_list.push(format!("{0}/{1}", folder_path.as_os_str().to_str().unwrap(), file_string));
                             }
-
                         } else {
                             /* Nothing - Ignore anything that is not a subfolder or a .rune file */
                         }

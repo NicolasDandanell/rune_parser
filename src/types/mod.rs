@@ -5,12 +5,12 @@ pub mod includes;
 pub mod standalone_comments;
 pub mod structs;
 
-pub use bitfields::{ BitfieldDefinition, BitfieldMember, BitSize };
-pub use defines::{ DefineDefinition, DefineValue, RedefineDefinition };
-pub use enums::{ EnumDefinition, EnumMember, EnumValue };
-pub use includes::{ IncludeDefinition };
-pub use standalone_comments::{ CommentPosition, StandaloneCommentDefinition };
-pub use structs::{ ArraySize, FieldSlot, FieldType, StructDefinition, StructMember, UserDefinitionLink };
+pub use bitfields::{BitSize, BitfieldDefinition, BitfieldMember};
+pub use defines::{DefineDefinition, DefineValue, RedefineDefinition};
+pub use enums::{EnumDefinition, EnumMember, EnumValue};
+pub use includes::IncludeDefinition;
+pub use standalone_comments::{CommentPosition, StandaloneCommentDefinition};
+pub use structs::{ArraySize, FieldSlot, FieldType, StructDefinition, StructMember, UserDefinitionLink};
 
 /// Top Level Struct containing all message definitions in a compilation unit (file + includes)
 #[derive(Debug, Clone)]
