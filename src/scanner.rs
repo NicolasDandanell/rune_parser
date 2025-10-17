@@ -1,19 +1,19 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
-    pub line: u32,
-    pub offset: Option<u32>,
+    pub line:   u32,
+    pub offset: Option<u32>
 }
 
 #[derive(Clone)]
 pub struct Spanned<T> {
     pub item: T,
     pub from: Position,
-    pub to: Position,
+    pub to:   Position
 }
 
 impl<T> std::fmt::Debug for Spanned<T>
 where
-    T: std::fmt::Debug,
+    T: std::fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
@@ -37,14 +37,8 @@ impl<T> Spanned<T> {
     pub fn empty() -> Spanned<()> {
         Spanned {
             item: (),
-            from: Position {
-                line: 0,
-                offset: None,
-            },
-            to: Position {
-                line: 0,
-                offset: None,
-            },
+            from: Position { line: 0, offset: None },
+            to:   Position { line: 0, offset: None }
         }
     }
 
@@ -52,18 +46,18 @@ impl<T> Spanned<T> {
         Spanned {
             item,
             from: s1.from,
-            to: s2.to,
+            to: s2.to
         }
     }
 
     pub fn map<U, F>(&self, f: F) -> Spanned<U>
     where
-        F: FnOnce(&T) -> U,
+        F: FnOnce(&T) -> U
     {
         Spanned {
             from: self.from,
-            to: self.to,
-            item: f(&self.item),
+            to:   self.to,
+            item: f(&self.item)
         }
     }
 
@@ -116,7 +110,7 @@ pub enum Token {
 pub enum ScanningProduct {
     Skip,
     Finished,
-    Token(Spanned<Token>),
+    Token(Spanned<Token>)
 }
 
 #[allow(unused)]
@@ -126,18 +120,18 @@ pub enum ScanningError {
     InvalidLiteral(Spanned<()>),
     UnexpectedEndOfFile,
     UnexpectedEndOfFileWhileParsing {
-        token_kind: &'static str,
-        start_position: Position,
-    },
+        token_kind:     &'static str,
+        start_position: Position
+    }
 }
 
 type ScanningResult = Result<ScanningProduct, ScanningError>;
 
 pub struct Scanner<I: Iterator<Item = char>> {
-    input: I,
-    line: u32,
+    input:  I,
+    line:   u32,
     offset: u32,
-    peeked: Option<char>,
+    peeked: Option<char>
 }
 
 impl<I: Iterator<Item = char>> Scanner<I> {
@@ -146,7 +140,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
             input,
             line: 1,
             offset: 0,
-            peeked: None,
+            peeked: None
         }
     }
 
@@ -188,19 +182,19 @@ impl<I: Iterator<Item = char>> Scanner<I> {
     pub fn keyword(&self, what: &str) -> Option<Token> {
         match what.to_owned().to_lowercase().as_str() {
             "bitfield" => Some(Token::Bitfield),
-            "define"   => Some(Token::Define),
-            "enum"     => Some(Token::Enum),
-            "include"  => Some(Token::Include),
+            "define" => Some(Token::Define),
+            "enum" => Some(Token::Enum),
+            "include" => Some(Token::Include),
             "redefine" => Some(Token::Redefine),
-            "struct"   => Some(Token::Struct),
-            _          => None,
+            "struct" => Some(Token::Struct),
+            _ => None
         }
     }
 
     pub fn position(&self) -> Position {
         Position {
-            line: self.line,
-            offset: Some(self.offset),
+            line:   self.line,
+            offset: Some(self.offset)
         }
     }
 
@@ -225,27 +219,21 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                     let mut comment = String::new();
 
                     loop {
-                        match self.advance().ok_or(
-                            ScanningError::UnexpectedEndOfFileWhileParsing {
-                                token_kind: "comment",
-                                start_position: from,
-                            },
-                        )? {
+                        match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                            token_kind:     "comment",
+                            start_position: from
+                        })? {
                             '\n' => {
                                 let to = self.position();
                                 self.offset = 0;
                                 self.line += 1;
 
-                                return Ok(ScanningProduct::Token(Spanned::new(
-                                    Token::Comment(comment),
-                                    from,
-                                    to,
-                                )));
-                            }
-                            c => comment.push(c),
+                                return Ok(ScanningProduct::Token(Spanned::new(Token::Comment(comment), from, to)));
+                            },
+                            c => comment.push(c)
                         }
                     }
-                }
+                },
                 Some('*') => {
                     self.advance();
 
@@ -253,48 +241,44 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                     let mut comment = String::new();
 
                     loop {
-                        match self.advance().ok_or(
-                            ScanningError::UnexpectedEndOfFileWhileParsing {
-                                token_kind: "comment",
-                                start_position: from,
-                            },
-                        )? {
+                        match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                            token_kind:     "comment",
+                            start_position: from
+                        })? {
                             '*' => {
-                                match self.peek().ok_or(
-                                    ScanningError::UnexpectedEndOfFileWhileParsing {
-                                        token_kind: "comment",
-                                        start_position: from,
-                                    },
-                                )? {
+                                match self.peek().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                                    token_kind:     "comment",
+                                    start_position: from
+                                })? {
                                     '/' => {
                                         self.advance();
                                         return Ok(ScanningProduct::Token(Spanned::new(
                                             Token::Comment(comment),
                                             from,
-                                            self.position(),
+                                            self.position()
                                         )));
-                                    }
+                                    },
                                     _ => {
                                         comment.push('*');
                                         continue;
                                     }
                                 }
-                            }
+                            },
                             '\n' => {
                                 self.offset = 0;
                                 self.line += 1;
                                 comment.push('\n');
-                            }
-                            c => comment.push(c),
+                            },
+                            c => comment.push(c)
                         }
                     }
-                }
+                },
                 Some(c) => Err(ScanningError::UnexpectedCharacter(Spanned::new(
                     c,
                     self.position(),
-                    self.position(),
+                    self.position()
                 ))),
-                None => Err(ScanningError::UnexpectedEndOfFile),
+                None => Err(ScanningError::UnexpectedEndOfFile)
             },
             '=' => tok(Token::Equals),
             ':' => tok(Token::Colon),
@@ -307,18 +291,12 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 self.line += 1;
                 self.offset = 0;
                 Ok(ScanningProduct::Skip)
-            }
+            },
             '"' => self.scan_string_literal(),
             c if c.is_whitespace() => Ok(ScanningProduct::Skip),
             c if c.is_numeric() => self.scan_numerics(c),
             c if c.is_alphanumeric() || c == '_' => self.scan_identifier(c),
-            c => {
-                return Err(ScanningError::UnexpectedCharacter(Spanned::new(
-                    c,
-                    from,
-                    self.position(),
-                )))
-            }
+            c => return Err(ScanningError::UnexpectedCharacter(Spanned::new(c, from, self.position())))
         }
     }
 
@@ -330,20 +308,18 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         let mut string = String::new();
 
         loop {
-            match self
-                .advance()
-                .ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
-                    token_kind: "string_literal",
-                    start_position: from,
-                })? {
+            match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                token_kind:     "string_literal",
+                start_position: from
+            })? {
                 '"' => {
                     return Ok(ScanningProduct::Token(Spanned::new(
                         Token::StringLiteral(string),
                         from,
-                        self.position(),
+                        self.position()
                     )));
-                }
-                c => string.push(c),
+                },
+                c => string.push(c)
             }
         }
     }
@@ -368,7 +344,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
         Ok(match self.keyword(&ident) {
             Some(k) => ScanningProduct::Token(Spanned::new(k, from, to)),
-            None => ScanningProduct::Token(Spanned::new(Token::Identifier(ident), from, to)),
+            None => ScanningProduct::Token(Spanned::new(Token::Identifier(ident), from, to))
         })
     }
 
@@ -384,7 +360,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         }
 
         match self.peek().unwrap() {
-            '.'       => {
+            '.' => {
                 text.push(self.advance().unwrap());
                 while self.peek().unwrap().is_numeric() {
                     text.push(self.advance().unwrap());
@@ -392,12 +368,8 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 let to = self.position();
 
                 match text.parse::<f64>() {
-                    Ok(f) => Ok(ScanningProduct::Token(Spanned::new(
-                        Token::FloatLiteral(f),
-                        from,
-                        to,
-                    ))),
-                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                    Ok(f) => Ok(ScanningProduct::Token(Spanned::new(Token::FloatLiteral(f), from, to))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             },
 
@@ -409,24 +381,16 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 let to = self.position();
 
                 match u64::from_str_radix(&text.strip_prefix("0x").unwrap(), 16) {
-                    Ok(hex) => Ok(ScanningProduct::Token(Spanned::new(
-                        Token::HexLiteral(hex),
-                        from,
-                        to,
-                    ))),
-                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                    Ok(hex) => Ok(ScanningProduct::Token(Spanned::new(Token::HexLiteral(hex), from, to))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             },
 
-            _         => {
+            _ => {
                 let to = self.position();
                 match i64::from_str_radix(&text, 10) {
-                    Ok(i) => Ok(ScanningProduct::Token(Spanned::new(
-                        Token::DecimalLiteral(i),
-                        from,
-                        to,
-                    ))),
-                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                    Ok(i) => Ok(ScanningProduct::Token(Spanned::new(Token::DecimalLiteral(i), from, to))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             }
         }

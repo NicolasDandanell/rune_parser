@@ -1,11 +1,11 @@
-use crate::types::{ BitfieldDefinition, DefineDefinition, EnumDefinition, StandaloneCommentDefinition };
+use crate::types::{BitfieldDefinition, DefineDefinition, EnumDefinition, StandaloneCommentDefinition};
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
-    pub name:    String,
-    pub members: Vec<StructMember>,
+    pub name:            String,
+    pub members:         Vec<StructMember>,
     pub orphan_comments: Vec<StandaloneCommentDefinition>,
-    pub comment: Option<String>
+    pub comment:         Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ pub enum FieldSlot {
     Numeric(usize),
 
     /// Used for the verification field. Aliases to 0
-    Verifier,
+    Verifier
 }
 
 #[derive(Debug, Clone)]
@@ -74,5 +74,5 @@ pub enum FieldType {
 
     // Arrays and user definitions
     Array(Box<FieldType>, ArraySize),
-    UserDefined(String),
+    UserDefined(String)
 }

@@ -5,7 +5,7 @@ pub struct BitfieldDefinition {
     pub name:         String,
     pub backing_type: FieldType,
     pub members:      Vec<BitfieldMember>,
-    pub comment:      Option<String>,
+    pub comment:      Option<String>
 }
 
 #[derive(Debug, Clone)]

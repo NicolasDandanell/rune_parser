@@ -1,19 +1,19 @@
-use crate::types::{ FieldType, StandaloneCommentDefinition };
+use crate::types::{FieldType, StandaloneCommentDefinition};
 
 #[derive(Debug, Clone)]
 pub struct EnumDefinition {
-    pub name: String,
-    pub backing_type: FieldType,
-    pub members: Vec<EnumMember>,
+    pub name:            String,
+    pub backing_type:    FieldType,
+    pub members:         Vec<EnumMember>,
     pub orphan_comments: Vec<StandaloneCommentDefinition>,
-    pub comment: Option<String>,
+    pub comment:         Option<String>
 }
 
 #[derive(Debug, Clone)]
 pub struct EnumMember {
-    pub ident: String,
-    pub value: EnumValue,
-    pub comment: Option<String>,
+    pub ident:   String,
+    pub value:   EnumValue,
+    pub comment: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -26,9 +26,9 @@ pub enum EnumValue {
 impl EnumValue {
     pub fn to_string(&self) -> String {
         match self {
-            EnumValue::FloatLiteral(float)     => float.to_string(),
+            EnumValue::FloatLiteral(float) => float.to_string(),
             EnumValue::DecimalLiteral(integer) => integer.to_string(),
-            EnumValue::HexLiteral(hex)         => format!("0x{0:02X}", hex)
+            EnumValue::HexLiteral(hex) => format!("0x{0:02X}", hex)
         }
     }
 }
