@@ -35,7 +35,7 @@ pub trait TokenSource: std::clone::Clone {
     fn expect_token(&mut self, token: Token) -> ParsingResult<ItemType> {
         match self.expect_next()? {
             t if *t == token => Ok(t),
-            t => Err(ParsingError::UnexpectedToken(t)),
+            t                => Err(ParsingError::UnexpectedToken(t)),
         }
     }
 
@@ -43,7 +43,7 @@ pub trait TokenSource: std::clone::Clone {
         let token = self.expect_next()?;
         match token.item {
             Token::Identifier(s) => Ok(Spanned::new(s, token.from, token.to)),
-            _ => Err(ParsingError::UnexpectedToken(token)),
+            _                    => Err(ParsingError::UnexpectedToken(token)),
         }
     }
 
@@ -51,7 +51,7 @@ pub trait TokenSource: std::clone::Clone {
         let token = self.expect_next()?;
         match token.item {
             Token::StringLiteral(s) => Ok(Spanned::new(s, token.from, token.to)),
-            _ => Err(ParsingError::UnexpectedToken(token)),
+            _                       => Err(ParsingError::UnexpectedToken(token)),
         }
     }
 
@@ -80,7 +80,7 @@ pub trait TokenSource: std::clone::Clone {
 
                 Ok(Spanned::new(bitfield_size, token.from, token.to))
             },
-            _ => Err(ParsingError::UnexpectedToken(token)),
+            _                     => Err(ParsingError::UnexpectedToken(token)),
         }
     }
 
@@ -115,8 +115,8 @@ pub trait TokenSource: std::clone::Clone {
                     Token::DecimalLiteral(i) => ArraySize::DecimalValue(*i as usize),
                     Token::HexLiteral(h)     => ArraySize::HexValue(*h as usize),
                     // String will generate a user definition, which will be populated with a value in post processing
-                    Token::Identifier(s)  => ArraySize::UserDefinition( DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None, redefinition: None } ),
-                    _ => return Err(ParsingError::UnexpectedToken(count_token)),
+                    Token::Identifier(s)     => ArraySize::UserDefinition( DefineDefinition { identifier: s.clone(), value: DefineValue::NoValue, comment: None, redefinition: None } ),
+                    _                        => return Err(ParsingError::UnexpectedToken(count_token)),
                 };
 
                 let rb = self.expect_token(Token::RightBracket)?;
