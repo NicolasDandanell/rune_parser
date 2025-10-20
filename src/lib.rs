@@ -6,7 +6,7 @@ pub mod validation;
 
 use std::{fs::ReadDir, path::Path, process::exit};
 
-use post_processing::{link_user_definitions, parse_define_statements};
+use post_processing::{link_user_definitions, parse_define_statements, parse_extensions};
 use scanner::Scanner;
 use types::Definitions;
 use validation::validate_struct_indexes;
@@ -25,7 +25,7 @@ pub enum RuneParserError {
     InvalidInputPath
 }
 
-pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, RuneParserError> {
+pub fn parser_rune_files(input_path: &Path, append_extensions: bool) -> Result<Vec<RuneFileDescription>, RuneParserError> {
     if !input_path.exists() || !input_path.is_dir() {
         if !input_path.exists() {
             println!("Input path \"{0}\" does not exist!", input_path.as_os_str().to_str().unwrap());
@@ -122,6 +122,9 @@ pub fn parser_rune_files(input_path: &Path) -> Result<Vec<RuneFileDescription>, 
 
     // Parse and link user defined data types across files
     link_user_definitions(&mut definitions_list);
+
+    // Parse extensions
+    parse_extensions(&mut definitions_list, append_extensions);
 
     // Validate parsed data structures
     // ————————————————————————————————
