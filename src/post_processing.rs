@@ -426,15 +426,17 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) {
                                 for user_define in &defines_list {
                                     // Match with identifier string
                                     if user_define.identifier == definition.identifier {
+                                        // Check for redefinition
+                                        let define_value: &DefineValue = match &user_define.redefinition {
+                                            None => &user_define.value,
+                                            Some(redefine) => &redefine.value
+                                        };
+
                                         // Parse the value. Only integer values are valid
-                                        match user_define.value {
-                                            DefineValue::DecimalLiteral(value) => {
-                                                definition.value = DefineValue::DecimalLiteral(value)
-                                            },
-                                            DefineValue::HexLiteral(value) => definition.value = DefineValue::HexLiteral(value),
-                                            _ => {
-                                                panic!("Could not parse {0} into a valid integer value!", definition.identifier)
-                                            }
+                                        match define_value {
+                                            DefineValue::DecimalLiteral(value) => definition.value = DefineValue::DecimalLiteral(*value),
+                                            DefineValue::HexLiteral(value) => definition.value = DefineValue::HexLiteral(*value),
+                                            _ => panic!("Could not parse {0} into a valid integer value!", definition.identifier)
                                         }
                                     }
                                 }
