@@ -16,8 +16,8 @@ pub enum BitSize {
 
 #[derive(Debug, Clone)]
 pub struct BitfieldMember {
-    pub ident:    String,
-    pub bit_size: BitSize,
-    pub bit_slot: usize,
-    pub comment:  Option<String>
+    pub identifier: String,
+    pub bit_size:   BitSize,
+    pub bit_slot:   usize,
+    pub comment:    Option<String>
 }

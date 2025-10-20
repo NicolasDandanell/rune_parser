@@ -94,10 +94,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     // Check every member of 'z' for duplicates in 'i'
                     for z_member in &bitfield_extensions[z].definition.members {
                         for i_member in &bitfield_extensions[i].definition.members {
-                            if z_member.ident == i_member.ident {
+                            if z_member.identifier == i_member.identifier {
                                 panic!(
                                     "Collision between two {0} extensions at index {1}",
-                                    bitfield_extensions[i].definition.name, z_member.ident
+                                    bitfield_extensions[i].definition.name, z_member.identifier
                                 );
                             }
                         }
@@ -146,10 +146,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     // Check every member of 'z' for duplicates in 'i'
                     for z_member in &enum_extensions[z].definition.members {
                         for i_member in &enum_extensions[i].definition.members {
-                            if z_member.ident == i_member.ident {
+                            if z_member.identifier == i_member.identifier {
                                 panic!(
                                     "Collision between two {0} extensions at index {1}",
-                                    enum_extensions[i].definition.name, z_member.ident
+                                    enum_extensions[i].definition.name, z_member.identifier
                                 );
                             }
                         }
@@ -188,10 +188,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     // Check every member of 'z' for duplicates in 'i'
                     for z_member in &struct_extensions[z].definition.members {
                         for i_member in &struct_extensions[i].definition.members {
-                            if z_member.ident == i_member.ident {
+                            if z_member.identifier == i_member.identifier {
                                 panic!(
                                     "Collision between two {0} extensions at index {1}",
-                                    struct_extensions[i].definition.name, z_member.ident
+                                    struct_extensions[i].definition.name, z_member.identifier
                                 );
                             }
                         }
@@ -242,10 +242,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         // Check for collisions
                         for extension_member in &extension.definition.members {
                             for definition_member in &bitfield_definition.members {
-                                if extension_member.ident == definition_member.ident {
+                                if extension_member.identifier == definition_member.identifier {
                                     panic!(
                                         "Collision between original {0} definition and extension at index {1}",
-                                        bitfield_definition.name, definition_member.ident
+                                        bitfield_definition.name, definition_member.identifier
                                     );
                                 }
                             }
@@ -286,10 +286,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         // Check for collisions
                         for extension_member in &extension.definition.members {
                             for definition_member in &enum_definition.members {
-                                if extension_member.ident == definition_member.ident {
+                                if extension_member.identifier == definition_member.identifier {
                                     panic!(
                                         "Collision between original {0} definition and extension at index {1}",
-                                        enum_definition.name, definition_member.ident
+                                        enum_definition.name, definition_member.identifier
                                     );
                                 }
                             }
@@ -320,10 +320,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         // Check for collisions
                         for extension_member in &extension.definition.members {
                             for definition_member in &struct_definition.members {
-                                if extension_member.ident == definition_member.ident {
+                                if extension_member.identifier == definition_member.identifier {
                                     panic!(
                                         "Collision between original {0} definition and extension at index {1}",
-                                        struct_definition.name, definition_member.ident
+                                        struct_definition.name, definition_member.identifier
                                     );
                                 }
                             }

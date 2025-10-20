@@ -330,12 +330,12 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         let mut from = self.position();
         from.offset = from.offset.map(|v| v - 1);
 
-        let mut ident = String::new();
-        ident.push(begin);
+        let mut identifier = String::new();
+        identifier.push(begin);
 
         loop {
             match self.peek() {
-                Some(c) if c.is_alphanumeric() || c == '_' => ident.push(self.advance().unwrap()),
+                Some(c) if c.is_alphanumeric() || c == '_' => identifier.push(self.advance().unwrap()),
                 _ => {
                     break;
                 }
@@ -344,9 +344,9 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
         let to = self.position();
 
-        Ok(match self.keyword(&ident) {
+        Ok(match self.keyword(&identifier) {
             Some(k) => ScanningProduct::Token(Spanned::new(k, from, to)),
-            None => ScanningProduct::Token(Spanned::new(Token::Identifier(ident), from, to))
+            None => ScanningProduct::Token(Spanned::new(Token::Identifier(identifier), from, to))
         })
     }
 

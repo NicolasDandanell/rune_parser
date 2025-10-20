@@ -185,7 +185,7 @@ fn parse_bitfield(
 
     // Type and identifier
     tokens.expect_token(Token::Bitfield)?;
-    let ident = tokens.expect_identifier()?;
+    let identifier = tokens.expect_identifier()?;
 
     // Backing type
     tokens.expect_token(Token::Colon)?;
@@ -200,7 +200,7 @@ fn parse_bitfield(
         let comment = tokens.maybe_expect_comment();
 
         // Identifier
-        let field_ident = tokens.expect_identifier()?;
+        let field_identifier = tokens.expect_identifier()?;
 
         // Bit size
         tokens.expect_token(Token::Colon)?;
@@ -216,10 +216,10 @@ fn parse_bitfield(
         };
 
         members.push(BitfieldMember {
-            ident:    field_ident.item.clone(),
-            bit_size: bit_size,
-            bit_slot: field_slot,
-            comment:  comment.map(|s| s.item)
+            identifier: field_identifier.item.clone(),
+            bit_size:   bit_size,
+            bit_slot:   field_slot,
+            comment:    comment.map(|s| s.item)
         });
 
         if tokens.maybe_expect(Token::SemiColon).is_none() {
@@ -232,7 +232,7 @@ fn parse_bitfield(
     }
 
     return Ok(BitfieldDefinition {
-        name:         ident.item.clone(),
+        name:         identifier.item.clone(),
         backing_type: backing_type.item,
         members:      members,
         comment:      comment
@@ -347,8 +347,8 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         };
 
         members.push(EnumMember {
-            ident: field_ident.item.clone(),
-            value: enum_value,
+            identifier: field_ident.item.clone(),
+            value:      enum_value,
 
             comment: comment.map(|s| s.item)
         });
@@ -532,7 +532,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
         };
 
         members.push(StructMember {
-            ident: field_ident.item.clone(),
+            identifier: field_ident.item.clone(),
             field_type: tk.item.clone(),
             field_slot,
             comment: comment.map(|s| s.item),
