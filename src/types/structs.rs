@@ -10,7 +10,7 @@ pub struct StructDefinition {
 
 #[derive(Debug, Clone)]
 pub struct StructMember {
-    pub ident:                String,
+    pub identifier:           String,
     pub field_type:           FieldType,
     pub field_slot:           FieldSlot,
     pub user_definition_link: UserDefinitionLink,

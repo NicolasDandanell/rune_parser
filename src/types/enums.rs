@@ -11,9 +11,9 @@ pub struct EnumDefinition {
 
 #[derive(Debug, Clone)]
 pub struct EnumMember {
-    pub ident:   String,
-    pub value:   EnumValue,
-    pub comment: Option<String>
+    pub identifier: String,
+    pub value:      EnumValue,
+    pub comment:    Option<String>
 }
 
 #[derive(Debug, Clone)]
