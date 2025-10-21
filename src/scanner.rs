@@ -43,11 +43,7 @@ impl<T> Spanned<T> {
     }
 
     pub fn encompass<A, B>(item: T, s1: Spanned<A>, s2: Spanned<B>) -> Spanned<T> {
-        Spanned {
-            item,
-            from: s1.from,
-            to: s2.to
-        }
+        Spanned { item, from: s1.from, to: s2.to }
     }
 
     pub fn map<U, F>(&self, f: F) -> Spanned<U>
@@ -120,10 +116,7 @@ pub enum ScanningError {
     UnexpectedCharacter(Spanned<char>),
     InvalidLiteral(Spanned<()>),
     UnexpectedEndOfFile,
-    UnexpectedEndOfFileWhileParsing {
-        token_kind:     &'static str,
-        start_position: Position
-    }
+    UnexpectedEndOfFileWhileParsing { token_kind: &'static str, start_position: Position }
 }
 
 type ScanningResult = Result<ScanningProduct, ScanningError>;
@@ -172,7 +165,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
     pub fn peek(&mut self) -> Option<char> {
         match self.peeked {
-            Some(c) => Some(c),
+            Some(character) => Some(character),
             None => {
                 self.peeked = self.input.next();
                 self.peeked
@@ -254,11 +247,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                                 })? {
                                     '/' => {
                                         self.advance();
-                                        return Ok(ScanningProduct::Token(Spanned::new(
-                                            Token::Comment(comment),
-                                            from,
-                                            self.position()
-                                        )));
+                                        return Ok(ScanningProduct::Token(Spanned::new(Token::Comment(comment), from, self.position())));
                                     },
                                     _ => {
                                         comment.push('*');
@@ -275,11 +264,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                         }
                     }
                 },
-                Some(c) => Err(ScanningError::UnexpectedCharacter(Spanned::new(
-                    c,
-                    self.position(),
-                    self.position()
-                ))),
+                Some(c) => Err(ScanningError::UnexpectedCharacter(Spanned::new(c, self.position(), self.position()))),
                 None => Err(ScanningError::UnexpectedEndOfFile)
             },
             '=' => tok(Token::Equals),
@@ -315,13 +300,9 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 start_position: from
             })? {
                 '"' => {
-                    return Ok(ScanningProduct::Token(Spanned::new(
-                        Token::StringLiteral(string),
-                        from,
-                        self.position()
-                    )));
+                    return Ok(ScanningProduct::Token(Spanned::new(Token::StringLiteral(string), from, self.position())));
                 },
-                c => string.push(c)
+                character => string.push(character)
             }
         }
     }
@@ -335,7 +316,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
         loop {
             match self.peek() {
-                Some(c) if c.is_alphanumeric() || c == '_' => identifier.push(self.advance().unwrap()),
+                Some(character) if character.is_alphanumeric() || character == '_' => identifier.push(self.advance().unwrap()),
                 _ => {
                     break;
                 }
@@ -370,7 +351,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 let to = self.position();
 
                 match text.parse::<f64>() {
-                    Ok(f) => Ok(ScanningProduct::Token(Spanned::new(Token::FloatLiteral(f), from, to))),
+                    Ok(float_value) => Ok(ScanningProduct::Token(Spanned::new(Token::FloatLiteral(float_value), from, to))),
                     Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             },
@@ -382,16 +363,19 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 }
                 let to = self.position();
 
-                match u64::from_str_radix(&text.strip_prefix("0x").unwrap(), 16) {
-                    Ok(hex) => Ok(ScanningProduct::Token(Spanned::new(Token::HexLiteral(hex), from, to))),
-                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                match text.strip_prefix("0x") {
+                    Some(string) => match u64::from_str_radix(&string, 16) {
+                        Ok(hex_value) => Ok(ScanningProduct::Token(Spanned::new(Token::HexLiteral(hex_value), from, to))),
+                        Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                    },
+                    None => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             },
 
             _ => {
                 let to = self.position();
                 match i64::from_str_radix(&text, 10) {
-                    Ok(i) => Ok(ScanningProduct::Token(Spanned::new(Token::DecimalLiteral(i), from, to))),
+                    Ok(decimal_value) => Ok(ScanningProduct::Token(Spanned::new(Token::DecimalLiteral(decimal_value), from, to))),
                     Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             }

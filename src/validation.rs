@@ -1,7 +1,7 @@
-use crate::{types::FieldSlot, RuneFileDescription};
+use crate::{output::is_silent, types::FieldSlot, RuneFileDescription, RuneParserError};
 
 /// Check that two fields do not have the same field index, considering that verifier is an alias for index 0
-pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
+pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
     // Check all files for struct definitions
     for file in files {
         for struct_definition in &file.definitions.structs {
@@ -15,7 +15,8 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
                     FieldSlot::Numeric(value) => value as u8,
                     FieldSlot::Verifier => {
                         if has_verification {
-                            panic!("Cannot have more than one verifier field!");
+                            error!("Cannot have more than one verifier field!");
+                            return Err(RuneParserError::IndexCollision);
                         } else {
                             has_verification = true;
                             0
@@ -25,12 +26,11 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
 
                 if index_list.contains(&index) {
                     if (index == 0) && (has_verification) {
-                        panic!("Cannot have a verifier field and a field with index 0! This is due to verifier being an alias for index 0");
+                        error!("Cannot have a verifier field and a field with index 0! This is due to verifier being an alias for index 0");
+                        return Err(RuneParserError::IndexCollision);
                     } else {
-                        panic!(
-                            "Cannot have multiple fields with the same index! Found multiple instances of index: {0}",
-                            index
-                        );
+                        error!("Cannot have multiple fields with the same index! Found multiple instances of index: {0}", index);
+                        return Err(RuneParserError::IndexCollision);
                     }
                 }
 
@@ -38,4 +38,6 @@ pub fn validate_struct_indexes(files: &Vec<RuneFileDescription>) {
             }
         }
     }
+
+    return Ok(());
 }

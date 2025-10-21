@@ -1,6 +1,6 @@
 use std::iter::{Iterator, Peekable};
 
-use crate::{scanner::*, types::*};
+use crate::{output::*, scanner::*, types::*};
 
 type ItemType = Spanned<Token>;
 
@@ -9,12 +9,14 @@ type ItemType = Spanned<Token>;
 pub enum ParsingError {
     UnexpectedToken(ItemType),
     UnexpectedEndOfInput,
-    ScanningError(ScanningError)
+    ScanningError(ScanningError),
+    InvalidIndex(i64),
+    LogicError
 }
 
 impl From<ScanningError> for ParsingError {
-    fn from(e: ScanningError) -> ParsingError {
-        ParsingError::ScanningError(e)
+    fn from(error: ScanningError) -> ParsingError {
+        ParsingError::ScanningError(error)
     }
 }
 
@@ -27,21 +29,21 @@ pub trait TokenSource: std::clone::Clone {
     fn expect_next(&mut self) -> ParsingResult<ItemType> {
         match self.next() {
             None => Err(ParsingError::UnexpectedEndOfInput),
-            Some(t) => Ok(t)
+            Some(token) => Ok(token)
         }
     }
 
-    fn expect_token(&mut self, token: Token) -> ParsingResult<ItemType> {
+    fn expect_token(&mut self, expected_token: Token) -> ParsingResult<ItemType> {
         match self.expect_next()? {
-            t if *t == token => Ok(t),
-            t => Err(ParsingError::UnexpectedToken(t))
+            token if *token == expected_token => Ok(token),
+            token => Err(ParsingError::UnexpectedToken(token))
         }
     }
 
     fn expect_identifier(&mut self) -> ParsingResult<Spanned<String>> {
         let token = self.expect_next()?;
         match token.item {
-            Token::Identifier(s) => Ok(Spanned::new(s, token.from, token.to)),
+            Token::Identifier(string) => Ok(Spanned::new(string, token.from, token.to)),
             _ => Err(ParsingError::UnexpectedToken(token))
         }
     }
@@ -49,7 +51,7 @@ pub trait TokenSource: std::clone::Clone {
     fn expect_string_literal(&mut self) -> ParsingResult<Spanned<String>> {
         let token = self.expect_next()?;
         match token.item {
-            Token::StringLiteral(s) => Ok(Spanned::new(s, token.from, token.to)),
+            Token::StringLiteral(string) => Ok(Spanned::new(string, token.from, token.to)),
             _ => Err(ParsingError::UnexpectedToken(token))
         }
     }
@@ -59,14 +61,14 @@ pub trait TokenSource: std::clone::Clone {
 
         match &token.item {
             // Parse identifier, with char first, then convert rest to decimal number
-            Token::Identifier(s) => {
-                let signed: bool = match s.chars().nth(0).unwrap() {
+            Token::Identifier(string) => {
+                let signed: bool = match string.chars().nth(0).unwrap() {
                     'u' | 'U' => false,
                     'i' | 'I' => true,
                     _ => return Err(ParsingError::UnexpectedToken(token))
                 };
 
-                let size: usize = match s[1..].parse() {
+                let size: usize = match string[1..].parse() {
                     Err(_) => return Err(ParsingError::UnexpectedToken(token)),
                     Ok(number) => number
                 };
@@ -85,8 +87,8 @@ pub trait TokenSource: std::clone::Clone {
     fn expect_type(&mut self) -> ParsingResult<Spanned<FieldType>> {
         let token = self.expect_next()?;
         match token.item {
-            Token::Identifier(s) => Ok(Spanned::new(
-                match s.as_str() {
+            Token::Identifier(string) => Ok(Spanned::new(
+                match string.as_str() {
                     "bool" => FieldType::Boolean,
                     "u8" => FieldType::UByte,
                     "i8" => FieldType::Byte,
@@ -99,7 +101,7 @@ pub trait TokenSource: std::clone::Clone {
                     "i64" => FieldType::Long,
                     "f32" => FieldType::Float,
                     "f64" => FieldType::Double,
-                    _ => FieldType::UserDefined(s)
+                    _ => FieldType::UserDefined(string)
                 },
                 token.from,
                 token.to
@@ -110,11 +112,11 @@ pub trait TokenSource: std::clone::Clone {
                 let count_token = self.expect_next()?;
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
-                    Token::DecimalLiteral(i) => ArraySize::DecimalValue(*i as usize),
-                    Token::HexLiteral(h) => ArraySize::HexValue(*h as usize),
+                    Token::DecimalLiteral(decimal_value) => ArraySize::DecimalValue(*decimal_value as usize),
+                    Token::HexLiteral(hex_value) => ArraySize::HexValue(*hex_value as usize),
                     // String will generate a user definition, which will be populated with a value in post processing
-                    Token::Identifier(s) => ArraySize::UserDefinition(DefineDefinition {
-                        identifier:   s.clone(),
+                    Token::Identifier(string) => ArraySize::UserDefinition(DefineDefinition {
+                        identifier:   string.clone(),
                         value:        DefineValue::NoValue,
                         comment:      None,
                         redefinition: None
@@ -122,21 +124,17 @@ pub trait TokenSource: std::clone::Clone {
                     _ => return Err(ParsingError::UnexpectedToken(count_token))
                 };
 
-                let rb = self.expect_token(Token::RightBracket)?;
+                let right_bracket = self.expect_token(Token::RightBracket)?;
 
-                Ok(Spanned::new(
-                    FieldType::Array(Box::new(inner_type.item), count),
-                    token.from,
-                    rb.to
-                ))
+                Ok(Spanned::new(FieldType::Array(Box::new(inner_type.item), count), token.from, right_bracket.to))
             },
             _ => Err(ParsingError::UnexpectedToken(token))
         }
     }
 
-    fn maybe_expect(&mut self, token: Token) -> Option<ItemType> {
+    fn maybe_expect(&mut self, expected_token: Token) -> Option<ItemType> {
         match TokenSource::peek(self)? {
-            t if t.item == token => Some(self.expect_next().unwrap()),
+            token if token.item == expected_token => Some(self.expect_next().unwrap()),
             _ => None
         }
     }
@@ -151,12 +149,12 @@ pub trait TokenSource: std::clone::Clone {
             let Spanned {
                 from,
                 to,
-                item: Token::Comment(s)
+                item: Token::Comment(string)
             } = self.expect_next().unwrap()
             else {
                 unreachable!()
             };
-            return Some(Spanned::new(s, from, to));
+            return Some(Spanned::new(string, from, to));
         }
 
         None
@@ -176,10 +174,7 @@ where
     }
 }
 
-fn parse_bitfield(
-    tokens: &mut impl TokenSource,
-    last_comment: &mut Option<String>
-) -> Result<BitfieldDefinition, ParsingError> {
+fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<BitfieldDefinition, ParsingError> {
     // Get comment if any
     let comment = last_comment.take();
 
@@ -262,12 +257,12 @@ fn parse_define(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     // Save, as implementing Composite value will require more debugging
     /* match define_value {
         DefineValue::IntegerLiteral(integer) => {
-            println!("Got definition with identifier \"{0}\" and integer value \"{1}\"", definition_name.item, integer)
+            info!("Got definition with identifier \"{0}\" and integer value \"{1}\"", definition_name.item, integer)
         },
         DefineValue::FloatLiteral(float)     => {
-            println!("Got definition with identifier \"{0}\" and float value \"{1}\"", definition_name.item, float)
+            info!("Got definition with identifier \"{0}\" and float value \"{1}\"", definition_name.item, float)
         },
-        _ => panic!("Composite define values not implemented yet!")
+        _ => error!("Composite define values not implemented yet!")
     }; */
 
     Ok(DefineDefinition {
@@ -300,39 +295,46 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
     loop {
         let comment = tokens.maybe_expect_comment();
 
-        let next_type = tokens.peek().unwrap();
-
-        if comment.is_some() {
+        match &comment {
             // Check for orphan comment
-            match &next_type.item {
-                // Create orphan comment from 'comment'
-                Token::Comment(_) => {
-                    orphan_comments.push(StandaloneCommentDefinition {
-                        comment:  comment.unwrap().item,
-                        position: match members.len() {
-                            0 => CommentPosition::Start,
-                            _ => CommentPosition::Middle(members.len())
-                        }
-                    });
+            Some(comment) => {
+                match tokens.peek() {
+                    None => {
+                        error!("Sudden end of file in the middle of an enum!");
+                        return Err(ParsingError::UnexpectedEndOfInput);
+                    },
+                    Some(next) => match &next.item {
+                        // Create orphan comment from 'comment'
+                        Token::Comment(_) => {
+                            orphan_comments.push(StandaloneCommentDefinition {
+                                comment:  comment.item.to_string(),
+                                position: match members.len() {
+                                    0 => CommentPosition::Start,
+                                    _ => CommentPosition::Middle(members.len())
+                                }
+                            });
 
-                    continue;
-                },
+                            continue;
+                        },
 
-                // Create orphan comment from 'comment'
-                Token::RightBrace => {
-                    orphan_comments.push(StandaloneCommentDefinition {
-                        comment:  comment.unwrap().item,
-                        position: CommentPosition::End
-                    });
+                        // Create orphan comment from 'comment'
+                        Token::RightBrace => {
+                            orphan_comments.push(StandaloneCommentDefinition {
+                                comment:  comment.item.to_string(),
+                                position: CommentPosition::End
+                            });
 
-                    tokens.expect_token(Token::RightBrace)?;
-                    break;
-                },
+                            tokens.expect_token(Token::RightBrace)?;
+                            break;
+                        },
 
-                // Parse next item entry normally
-                _ => ()
-            }
-        }
+                        // Parse next item entry normally
+                        _ => ()
+                    }
+                }
+            },
+            None => ()
+        };
 
         let field_ident = tokens.expect_identifier()?;
 
@@ -371,10 +373,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
     })
 }
 
-fn parse_extension(
-    tokens: &mut impl TokenSource,
-    last_comment: &mut Option<String>
-) -> Result<ExtensionDefinition, ParsingError> {
+fn parse_extension(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<ExtensionDefinition, ParsingError> {
     // Get extend token
     tokens.expect_token(Token::Extend)?;
 
@@ -404,22 +403,14 @@ fn parse_extension(
 fn parse_include(tokens: &mut impl TokenSource, _: &mut Option<String>) -> Result<IncludeDefinition, ParsingError> {
     tokens.expect_next()?;
 
-    let string: String = tokens
-        .expect_string_literal()?
-        .item
-        .strip_suffix(".rune")
-        .expect("File included was now a .rune file")
-        .to_string();
+    let string: String = tokens.expect_string_literal()?.item.strip_suffix(".rune").expect("File included was now a .rune file").to_string();
 
     tokens.expect_token(Token::SemiColon)?;
 
     return Ok(IncludeDefinition { file: string });
 }
 
-fn parse_redefine(
-    tokens: &mut impl TokenSource,
-    last_comment: &mut Option<String>
-) -> Result<RedefineDefinition, ParsingError> {
+fn parse_redefine(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<RedefineDefinition, ParsingError> {
     // Get comment if any
     let comment = last_comment.take();
 
@@ -464,39 +455,46 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     loop {
         let comment = tokens.maybe_expect_comment();
 
-        let next_type = tokens.peek().unwrap();
-
-        if comment.is_some() {
+        match &comment {
             // Check for orphan comment
-            match &next_type.item {
-                // Create orphan comment from 'comment'
-                Token::Comment(_) => {
-                    orphan_comments.push(StandaloneCommentDefinition {
-                        comment:  comment.unwrap().item,
-                        position: match members.len() {
-                            0 => CommentPosition::Start,
-                            _ => CommentPosition::Middle(members.len())
-                        }
-                    });
+            Some(comment) => {
+                match tokens.peek() {
+                    None => {
+                        error!("Sudden end of file in the middle of an enum!");
+                        return Err(ParsingError::UnexpectedEndOfInput);
+                    },
+                    Some(next) => match &next.item {
+                        // Create orphan comment from 'comment'
+                        Token::Comment(_) => {
+                            orphan_comments.push(StandaloneCommentDefinition {
+                                comment:  comment.item.to_string(),
+                                position: match members.len() {
+                                    0 => CommentPosition::Start,
+                                    _ => CommentPosition::Middle(members.len())
+                                }
+                            });
 
-                    continue;
-                },
+                            continue;
+                        },
 
-                // Create orphan comment from 'comment'
-                Token::RightBrace => {
-                    orphan_comments.push(StandaloneCommentDefinition {
-                        comment:  comment.unwrap().item,
-                        position: CommentPosition::End
-                    });
+                        // Create orphan comment from 'comment'
+                        Token::RightBrace => {
+                            orphan_comments.push(StandaloneCommentDefinition {
+                                comment:  comment.item.to_string(),
+                                position: CommentPosition::End
+                            });
 
-                    tokens.expect_token(Token::RightBrace)?;
-                    break;
-                },
+                            tokens.expect_token(Token::RightBrace)?;
+                            break;
+                        },
 
-                // Parse next item entry normally
-                _ => ()
-            }
-        }
+                        // Parse next item entry normally
+                        _ => ()
+                    }
+                }
+            },
+            None => ()
+        };
 
         let field_ident = tokens.expect_identifier()?;
 
@@ -513,9 +511,15 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
                     // Legal values
                     0..32 => FieldSlot::Numeric(*i as usize),
                     // Higher than legal values
-                    32.. => panic!("Field index cannot have a value higher than 30!"),
+                    32.. => {
+                        error!("Field index cannot have a value higher than 31!");
+                        return Err(ParsingError::InvalidIndex(*i));
+                    },
                     // Negative values
-                    ..0 => panic!("Field indexes cannot have negative values!")
+                    ..0 => {
+                        error!("Field indexes cannot have negative values!");
+                        return Err(ParsingError::InvalidIndex(*i));
+                    }
                 }
             },
             Token::HexLiteral(h) => {
@@ -524,7 +528,10 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
                     // Legal values
                     0..32 => FieldSlot::Numeric(*h as usize),
                     // Higher than legal values
-                    32.. => panic!("Field index cannot have a value higher than 30!")
+                    32.. => {
+                        error!("Field index cannot have a value higher than 31!");
+                        return Err(ParsingError::InvalidIndex(*h as i64));
+                    }
                 }
             },
             Token::Identifier(s) if s == "verifier" => FieldSlot::Verifier,
@@ -563,11 +570,10 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
     let mut last_was_comment: bool = false;
 
     'parsing: loop {
-        let token = tokens.peek();
-        if token.is_none() {
-            break 'parsing;
-        }
-        let token = token.unwrap();
+        let token = match tokens.peek() {
+            None => break 'parsing,
+            Some(token) => token
+        };
 
         match &token.item {
             Token::Comment(_) => (),
@@ -584,7 +590,13 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
                 if last_was_comment {
                     // Turn the last comment into a standalone comment
                     definitions.standalone_comments.push(StandaloneCommentDefinition {
-                        comment:  last_comment.unwrap(),
+                        comment:  match last_comment {
+                            None => {
+                                error!("Something went wrong in comment parsing logic");
+                                return Err(ParsingError::LogicError);
+                            },
+                            Some(string) => string
+                        },
                         position: CommentPosition::Start
                     });
                 }
