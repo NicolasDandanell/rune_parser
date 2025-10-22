@@ -79,22 +79,38 @@ impl<T> DerefMut for Spanned<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum NumericLiteral {
+    Decimal(isize),
+    Hexadecimal(usize),
+    Float(f64)
+}
+
+impl NumericLiteral {
+    pub fn to_string(&self) -> String {
+        match self {
+            NumericLiteral::Float(float) => float.to_string(),
+            NumericLiteral::Decimal(integer) => integer.to_string(),
+            NumericLiteral::Hexadecimal(hex) => format!("0x{0:02X}", hex)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Bitfield,
     Colon,
     Comment(String),
-    DecimalLiteral(i64),
     Define,
     Enum,
     Equals,
     Extend,
-    FloatLiteral(f64),
     Identifier(String),
-    HexLiteral(u64),
     Include,
     LeftBrace,
     LeftBracket,
+    NumericLiteral(NumericLiteral),
     Redefine,
+    Reserve,
     RightBrace,
     RightBracket,
     SemiColon,
@@ -280,10 +296,10 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 Ok(ScanningProduct::Skip)
             },
             '"' => self.scan_string_literal(),
-            c if c.is_whitespace() => Ok(ScanningProduct::Skip),
-            c if c.is_numeric() => self.scan_numerics(c),
-            c if c.is_alphanumeric() || c == '_' => self.scan_identifier(c),
-            c => return Err(ScanningError::UnexpectedCharacter(Spanned::new(c, from, self.position())))
+            character if character.is_whitespace() => Ok(ScanningProduct::Skip),
+            character if character.is_numeric() => self.scan_numerics(character),
+            character if character.is_alphanumeric() || character == '_' => self.scan_identifier(character),
+            character => return Err(ScanningError::UnexpectedCharacter(Spanned::new(character, from, self.position())))
         }
     }
 
@@ -351,7 +367,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 let to = self.position();
 
                 match text.parse::<f64>() {
-                    Ok(float_value) => Ok(ScanningProduct::Token(Spanned::new(Token::FloatLiteral(float_value), from, to))),
+                    Ok(float_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Float(float_value)), from, to))),
                     Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             },
@@ -364,8 +380,8 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 let to = self.position();
 
                 match text.strip_prefix("0x") {
-                    Some(string) => match u64::from_str_radix(&string, 16) {
-                        Ok(hex_value) => Ok(ScanningProduct::Token(Spanned::new(Token::HexLiteral(hex_value), from, to))),
+                    Some(string) => match usize::from_str_radix(&string, 16) {
+                        Ok(hex_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Hexadecimal(hex_value)), from, to))),
                         Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                     },
                     None => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
@@ -374,8 +390,8 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
             _ => {
                 let to = self.position();
-                match i64::from_str_radix(&text, 10) {
-                    Ok(decimal_value) => Ok(ScanningProduct::Token(Spanned::new(Token::DecimalLiteral(decimal_value), from, to))),
+                match isize::from_str_radix(&text, 10) {
+                    Ok(decimal_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Decimal(decimal_value)), from, to))),
                     Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                 }
             }
