@@ -10,7 +10,7 @@ pub enum ParsingError {
     UnexpectedToken(ItemType),
     UnexpectedEndOfInput,
     ScanningError(ScanningError),
-    InvalidIndex(i64),
+    InvalidIndex(isize),
     LogicError
 }
 
@@ -106,14 +106,19 @@ pub trait TokenSource: std::clone::Clone {
                 token.from,
                 token.to
             )),
+
             Token::LeftBracket => {
                 let inner_type = self.expect_type()?;
                 self.expect_token(Token::SemiColon)?;
                 let count_token = self.expect_next()?;
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
-                    Token::DecimalLiteral(decimal_value) => ArraySize::DecimalValue(*decimal_value as usize),
-                    Token::HexLiteral(hex_value) => ArraySize::HexValue(*hex_value as usize),
+                    Token::NumericLiteral(value) => match value {
+                        NumericLiteral::Decimal(decimal) => ArraySize::DecimalValue(*decimal as usize),
+                        NumericLiteral::Hexadecimal(hexadecimal) => ArraySize::HexValue(*hexadecimal as usize),
+                        _ => return Err(ParsingError::UnexpectedToken(count_token))
+                    },
+
                     // String will generate a user definition, which will be populated with a value in post processing
                     Token::Identifier(string) => ArraySize::UserDefinition(DefineDefinition {
                         identifier:   string.clone(),
@@ -128,6 +133,7 @@ pub trait TokenSource: std::clone::Clone {
 
                 Ok(Spanned::new(FieldType::Array(Box::new(inner_type.item), count), token.from, right_bracket.to))
             },
+
             _ => Err(ParsingError::UnexpectedToken(token))
         }
     }
@@ -205,8 +211,19 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         // Bit field slot
         tokens.expect_token(Token::Equals)?;
         let field_slot_token = tokens.expect_next()?;
-        let field_slot = match field_slot_token.item {
-            Token::DecimalLiteral(i) => i as usize,
+
+        let field_slot = match &field_slot_token.item {
+            Token::NumericLiteral(value) => match value {
+                NumericLiteral::Decimal(decimal) => match decimal {
+                    ..0 => {
+                        error!("Bit slot cannot have negative number {0}", decimal);
+                        return Err(ParsingError::InvalidIndex(*decimal));
+                    },
+                    0.. => *decimal as usize
+                },
+                NumericLiteral::Hexadecimal(hexadecimal) => *hexadecimal as usize,
+                _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
+            },
             _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
         };
 
@@ -227,10 +244,11 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     }
 
     return Ok(BitfieldDefinition {
-        name:         identifier.item.clone(),
-        backing_type: backing_type.item,
-        members:      members,
-        comment:      comment
+        name:            identifier.item.clone(),
+        backing_type:    backing_type.item,
+        members:         members,
+        comment:         comment,
+        orphan_comments: Vec::new()
     });
 }
 
@@ -245,10 +263,8 @@ fn parse_define(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     let definition_name = tokens.expect_identifier()?;
 
     let define_value_token = tokens.expect_next()?;
-    let define_value: DefineValue = match &define_value_token.item {
-        Token::DecimalLiteral(i) => DefineValue::DecimalLiteral(*i),
-        Token::HexLiteral(h) => DefineValue::HexLiteral(*h),
-        Token::FloatLiteral(f) => DefineValue::FloatLiteral(*f),
+    let define_value: DefineValue = match define_value_token.item {
+        Token::NumericLiteral(value) => DefineValue::NumericLiteral(value),
         _ => return Err(ParsingError::UnexpectedToken(define_value_token))
     };
 
@@ -341,18 +357,15 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         tokens.expect_token(Token::Equals)?;
 
         let enum_value_token = tokens.expect_next()?;
-        let enum_value = match &enum_value_token.item {
-            Token::DecimalLiteral(i) => EnumValue::DecimalLiteral(*i),
-            Token::HexLiteral(h) => EnumValue::HexLiteral(*h),
-            Token::FloatLiteral(f) => EnumValue::FloatLiteral(*f),
+        let enum_value = match enum_value_token.item {
+            Token::NumericLiteral(value) => value,
             _ => return Err(ParsingError::UnexpectedToken(enum_value_token))
         };
 
         members.push(EnumMember {
             identifier: field_ident.item.clone(),
             value:      enum_value,
-
-            comment: comment.map(|s| s.item)
+            comment:    comment.map(|s| s.item)
         });
 
         if tokens.maybe_expect(Token::SemiColon).is_none() {
@@ -421,10 +434,8 @@ fn parse_redefine(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     let definition_name = tokens.expect_identifier()?;
 
     let redefine_value_token = tokens.expect_next()?;
-    let redefine_value: DefineValue = match &redefine_value_token.item {
-        Token::DecimalLiteral(i) => DefineValue::DecimalLiteral(*i),
-        Token::HexLiteral(h) => DefineValue::HexLiteral(*h),
-        Token::FloatLiteral(f) => DefineValue::FloatLiteral(*f),
+    let redefine_value: DefineValue = match redefine_value_token.item {
+        Token::NumericLiteral(value) => DefineValue::NumericLiteral(value),
         _ => return Err(ParsingError::UnexpectedToken(redefine_value_token))
     };
 
@@ -505,35 +516,33 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
 
         let field_slot_token = tokens.expect_next()?;
         let field_slot: FieldSlot = match &field_slot_token.item {
-            Token::DecimalLiteral(i) => {
-                // Check if value is positive and within the legal values (0 to and not including 32)
-                match *i {
+            Token::NumericLiteral(value) => match value {
+                NumericLiteral::Decimal(decimal) => match decimal {
                     // Legal values
-                    0..32 => FieldSlot::Numeric(*i as usize),
+                    0..32 => FieldSlot::Numeric(*decimal as usize),
                     // Higher than legal values
                     32.. => {
                         error!("Field index cannot have a value higher than 31!");
-                        return Err(ParsingError::InvalidIndex(*i));
+                        return Err(ParsingError::InvalidIndex(*decimal));
                     },
                     // Negative values
                     ..0 => {
                         error!("Field indexes cannot have negative values!");
-                        return Err(ParsingError::InvalidIndex(*i));
+                        return Err(ParsingError::InvalidIndex(*decimal));
                     }
-                }
-            },
-            Token::HexLiteral(h) => {
-                // Check if value is within the legal values (0 to and not including 32)
-                match *h {
+                },
+                NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
                     // Legal values
-                    0..32 => FieldSlot::Numeric(*h as usize),
+                    0..32 => FieldSlot::Numeric(*hexadecimal as usize),
                     // Higher than legal values
                     32.. => {
                         error!("Field index cannot have a value higher than 31!");
-                        return Err(ParsingError::InvalidIndex(*h as i64));
+                        return Err(ParsingError::InvalidIndex(*hexadecimal as isize));
                     }
-                }
+                },
+                _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
             },
+
             Token::Identifier(s) if s == "verifier" => FieldSlot::Verifier,
             _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
         };

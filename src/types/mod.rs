@@ -8,7 +8,7 @@ pub mod structs;
 
 pub use bitfields::{BitSize, BitfieldDefinition, BitfieldMember};
 pub use defines::{DefineDefinition, DefineValue, RedefineDefinition};
-pub use enums::{EnumDefinition, EnumMember, EnumValue};
+pub use enums::{EnumDefinition, EnumMember};
 pub use extensions::{ExtensionDefinition, Extensions};
 pub use includes::IncludeDefinition;
 pub use standalone_comments::{CommentPosition, StandaloneCommentDefinition};

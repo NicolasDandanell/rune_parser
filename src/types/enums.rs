@@ -1,4 +1,7 @@
-use crate::types::{FieldType, StandaloneCommentDefinition};
+use crate::{
+    scanner::NumericLiteral,
+    types::{FieldType, StandaloneCommentDefinition}
+};
 
 #[derive(Debug, Clone)]
 pub struct EnumDefinition {
@@ -12,23 +15,6 @@ pub struct EnumDefinition {
 #[derive(Debug, Clone)]
 pub struct EnumMember {
     pub identifier: String,
-    pub value:      EnumValue,
+    pub value:      NumericLiteral,
     pub comment:    Option<String>
-}
-
-#[derive(Debug, Clone)]
-pub enum EnumValue {
-    DecimalLiteral(i64),
-    HexLiteral(u64),
-    FloatLiteral(f64)
-}
-
-impl EnumValue {
-    pub fn to_string(&self) -> String {
-        match self {
-            EnumValue::FloatLiteral(float) => float.to_string(),
-            EnumValue::DecimalLiteral(integer) => integer.to_string(),
-            EnumValue::HexLiteral(hex) => format!("0x{0:02X}", hex)
-        }
-    }
 }

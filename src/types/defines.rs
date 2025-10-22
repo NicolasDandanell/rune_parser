@@ -1,3 +1,5 @@
+use crate::scanner::NumericLiteral;
+
 #[derive(Debug, Clone)]
 pub struct DefineDefinition {
     pub identifier:   String,
@@ -16,8 +18,6 @@ pub struct RedefineDefinition {
 #[derive(Debug, Clone)]
 pub enum DefineValue {
     NoValue,
-    DecimalLiteral(i64),
-    HexLiteral(u64),
-    FloatLiteral(f64),
+    NumericLiteral(NumericLiteral),
     Composite(String)
 }
