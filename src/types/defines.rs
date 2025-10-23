@@ -2,7 +2,7 @@ use crate::scanner::NumericLiteral;
 
 #[derive(Debug, Clone)]
 pub struct DefineDefinition {
-    pub identifier:   String,
+    pub name:         String,
     pub value:        DefineValue,
     pub comment:      Option<String>,
     pub redefinition: Option<RedefineDefinition>
@@ -10,9 +10,9 @@ pub struct DefineDefinition {
 
 #[derive(Debug, Clone)]
 pub struct RedefineDefinition {
-    pub identifier: String,
-    pub value:      DefineValue,
-    pub comment:    Option<String>
+    pub name:    String,
+    pub value:   DefineValue,
+    pub comment: Option<String>
 }
 
 #[derive(Debug, Clone)]

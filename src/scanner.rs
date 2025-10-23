@@ -80,11 +80,74 @@ impl<T> DerefMut for Spanned<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum NumericLiteral {
+    Boolean(bool),
     Decimal(isize),
     Hexadecimal(usize),
     Float(f64)
+}
+
+impl PartialEq for NumericLiteral {
+    /// Evaluate the raw numeric value of the literals, casting types as needed
+    fn eq(&self, other: &NumericLiteral) -> bool {
+        match self {
+            NumericLiteral::Boolean(own_value) => match other {
+                NumericLiteral::Boolean(other_value) => own_value == other_value,
+                NumericLiteral::Decimal(other_value) => *own_value as isize == *other_value,
+                NumericLiteral::Hexadecimal(other_value) => *own_value as usize == *other_value,
+                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
+                    false => false,
+                    true => *own_value as isize == *other_value as isize
+                }
+            },
+            NumericLiteral::Decimal(own_value) => match other {
+                NumericLiteral::Boolean(other_value) => *own_value == *other_value as isize,
+                NumericLiteral::Decimal(other_value) => *own_value == *other_value,
+                NumericLiteral::Hexadecimal(other_value) => match own_value {
+                    ..0 => false,
+                    0.. => *own_value as usize == *other_value
+                },
+                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
+                    false => false,
+                    true => *own_value == *other_value as isize
+                }
+            },
+            NumericLiteral::Hexadecimal(own_value) => match other {
+                NumericLiteral::Boolean(other_value) => *own_value == *other_value as usize,
+                NumericLiteral::Decimal(other_value) => match other_value {
+                    ..0 => false,
+                    0.. => *own_value == *other_value as usize
+                },
+                NumericLiteral::Hexadecimal(other_value) => *own_value == *other_value,
+                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
+                    false => false,
+                    true => match *other_value as isize {
+                        ..0 => false,
+                        0.. => *own_value == *other_value as usize
+                    }
+                }
+            },
+            NumericLiteral::Float(own_value) => match other {
+                NumericLiteral::Boolean(other_value) => match own_value.fract() == 0.0 {
+                    false => false,
+                    true => *own_value as isize == *other_value as isize
+                },
+                NumericLiteral::Decimal(other_value) => match own_value.fract() == 0.0 {
+                    false => false,
+                    true => *own_value as isize == *other_value
+                },
+                NumericLiteral::Hexadecimal(other_value) => match own_value.fract() == 0.0 {
+                    false => false,
+                    true => match *own_value as isize {
+                        ..0 => false,
+                        0.. => *own_value as usize == *other_value
+                    }
+                },
+                NumericLiteral::Float(other_value) => *own_value == *other_value
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -189,10 +252,12 @@ impl<I: Iterator<Item = char>> Scanner<I> {
             "define" => Some(Token::Define),
             "enum" => Some(Token::Enum),
             "extend" => Some(Token::Extend),
+            "false" => Some(Token::NumericLiteral(NumericLiteral::Boolean(false))),
             "include" => Some(Token::Include),
             "redefine" => Some(Token::Redefine),
             "reserve" => Some(Token::Reserve),
             "struct" => Some(Token::Struct),
+            "true" => Some(Token::NumericLiteral(NumericLiteral::Boolean(true))),
             "verifier" => Some(Token::Verifier),
             _ => None
         }
@@ -237,9 +302,6 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         while self.peek().unwrap().is_numeric() {
             text.push(self.advance().unwrap());
         }
-
-        // IMPLEMENT NUMERIC RANGE ==> ONLY INTEGER RANGES ARE VALID FOR NOW, FLOAT RANGES MIGHT BE IMPLEMENTED IN THE FUTURE
-        // HEXADECIMAL RANGES ARE ALSO VALID!!!
 
         match self.peek() {
             None => return Err(ScanningError::UnexpectedEndOfFile),
@@ -524,12 +586,12 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                 Ok(ScanningProduct::Skip)
             },
 
+            character if character.is_numeric() => self.scan_numerics(),
+            character if character.is_alphanumeric() || character == '_' => self.scan_identifier(),
             character if character.is_whitespace() => {
                 self.advance();
                 Ok(ScanningProduct::Skip)
             },
-            character if character.is_numeric() => self.scan_numerics(),
-            character if character.is_alphanumeric() || character == '_' => self.scan_identifier(),
             character => {
                 self.advance();
                 return Err(ScanningError::UnexpectedCharacter(Spanned::new(character, from, self.position())));

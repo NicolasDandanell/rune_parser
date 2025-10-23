@@ -12,7 +12,7 @@ use output::{enable_silent, is_silent};
 use post_processing::{link_user_definitions, parse_define_statements, parse_extensions};
 use scanner::Scanner;
 use types::Definitions;
-use validation::validate_struct_indexes;
+use validation::validate_parsed_files;
 
 const ALLOCATION_SIZE: usize = 0x40;
 
@@ -28,7 +28,10 @@ pub enum RuneParserError {
     InvalidInputPath,
     InvalidFilePath,
     FileSystemError,
+    IdentifierCollision,
     IndexCollision,
+    NameCollision,
+    ValueCollision,
     UseOfReservedIndex,
     ExtensionMismatch,
     UndefinedIdentifier,
@@ -170,30 +173,18 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
     // ————————————————
 
     // Parse and resolve define statements
-    match parse_define_statements(&mut definitions_list) {
-        Err(error) => return Err(error),
-        Ok(_) => ()
-    }
+    parse_define_statements(&mut definitions_list)?;
 
     // Parse and link user defined data types across files
-    match link_user_definitions(&mut definitions_list) {
-        Err(error) => return Err(error),
-        Ok(_) => ()
-    };
+    link_user_definitions(&mut definitions_list)?;
 
     // Parse extensions
-    match parse_extensions(&mut definitions_list, append_extensions) {
-        Err(error) => return Err(error),
-        Ok(_) => ()
-    };
+    parse_extensions(&mut definitions_list, append_extensions)?;
 
     // Validate parsed data structures
     // ————————————————————————————————
 
-    match validate_struct_indexes(&definitions_list) {
-        Err(error) => return Err(error),
-        Ok(_) => ()
-    }
+    validate_parsed_files(&definitions_list)?;
 
     // Return list
     // ————————————
