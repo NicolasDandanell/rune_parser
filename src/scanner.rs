@@ -1,3 +1,7 @@
+use std::ops::{Deref, DerefMut};
+
+use crate::output::*;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
     pub line:   u32,
@@ -62,8 +66,6 @@ impl<T> Spanned<T> {
     }
 }
 
-use std::ops::{Deref, DerefMut};
-
 impl<T> Deref for Spanned<T> {
     type Target = T;
 
@@ -85,19 +87,10 @@ pub enum NumericLiteral {
     Float(f64)
 }
 
-impl NumericLiteral {
-    pub fn to_string(&self) -> String {
-        match self {
-            NumericLiteral::Float(float) => float.to_string(),
-            NumericLiteral::Decimal(integer) => integer.to_string(),
-            NumericLiteral::Hexadecimal(hex) => format!("0x{0:02X}", hex)
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Bitfield,
+    Comma,
     Colon,
     Comment(String),
     Define,
@@ -109,6 +102,7 @@ pub enum Token {
     LeftBrace,
     LeftBracket,
     NumericLiteral(NumericLiteral),
+    NumericRange(NumericLiteral, NumericLiteral),
     Redefine,
     Reserve,
     RightBrace,
@@ -197,7 +191,9 @@ impl<I: Iterator<Item = char>> Scanner<I> {
             "extend" => Some(Token::Extend),
             "include" => Some(Token::Include),
             "redefine" => Some(Token::Redefine),
+            "reserve" => Some(Token::Reserve),
             "struct" => Some(Token::Struct),
+            "verifier" => Some(Token::Verifier),
             _ => None
         }
     }
@@ -209,97 +205,176 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         }
     }
 
-    pub fn scan_token(&mut self) -> ScanningResult {
+    pub fn scan_identifier(&mut self) -> ScanningResult {
         let from = self.position();
-        let c = match self.advance() {
-            Some(c) => c,
-            None => {
-                return Ok(ScanningProduct::Finished);
+
+        let mut identifier = String::new();
+
+        loop {
+            match self.peek() {
+                Some(character) if character.is_alphanumeric() || character == '_' => identifier.push(self.advance().unwrap()),
+                _ => {
+                    break;
+                }
             }
-        };
-        let peeked = self.peek();
+        }
 
         let to = self.position();
-        let tok = |t| Ok(ScanningProduct::Token(Spanned::new(t, from, to)));
 
-        match c {
-            '/' => match peeked {
-                Some('/') => {
-                    self.advance();
+        Ok(match self.keyword(&identifier) {
+            Some(k) => ScanningProduct::Token(Spanned::new(k, from, to)),
+            None => ScanningProduct::Token(Spanned::new(Token::Identifier(identifier), from, to))
+        })
+    }
 
-                    let mut comment = String::new();
+    pub fn scan_numerics(&mut self) -> ScanningResult {
+        let starting_from = self.position();
+        let mut from = starting_from;
+        from.offset = from.offset.map(|v| v - 1);
 
-                    loop {
-                        match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
-                            token_kind:     "comment",
-                            start_position: from
-                        })? {
-                            '\n' => {
-                                let to = self.position();
-                                self.offset = 0;
-                                self.line += 1;
+        let mut text = String::new();
 
-                                return Ok(ScanningProduct::Token(Spanned::new(Token::Comment(comment), from, to)));
-                            },
-                            c => comment.push(c)
-                        }
+        while self.peek().unwrap().is_numeric() {
+            text.push(self.advance().unwrap());
+        }
+
+        // IMPLEMENT NUMERIC RANGE ==> ONLY INTEGER RANGES ARE VALID FOR NOW, FLOAT RANGES MIGHT BE IMPLEMENTED IN THE FUTURE
+        // HEXADECIMAL RANGES ARE ALSO VALID!!!
+
+        match self.peek() {
+            None => return Err(ScanningError::UnexpectedEndOfFile),
+            Some(peeked_value) => match peeked_value {
+                // Floating point numbers
+                '.' => {
+                    text.push(self.advance().unwrap());
+                    while self.peek().unwrap().is_numeric() {
+                        text.push(self.advance().unwrap());
+                    }
+
+                    match text.parse::<f64>() {
+                        Ok(float_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Float(float_value)), from, self.position()))),
+                        Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
                     }
                 },
-                Some('*') => {
+
+                // Hexadecimal numbers
+                'x' | 'X' => {
+                    // Advance past 'x'
                     self.advance();
 
-                    let from = self.position();
-                    let mut comment = String::new();
+                    // Remove initial '0' from text
+                    text.pop();
 
                     loop {
-                        match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
-                            token_kind:     "comment",
-                            start_position: from
-                        })? {
-                            '*' => {
-                                match self.peek().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
-                                    token_kind:     "comment",
-                                    start_position: from
-                                })? {
-                                    '/' => {
-                                        self.advance();
-                                        return Ok(ScanningProduct::Token(Spanned::new(Token::Comment(comment), from, self.position())));
-                                    },
-                                    _ => {
-                                        comment.push('*');
-                                        continue;
+                        match self.peek() {
+                            None => return Err(ScanningError::UnexpectedEndOfFile),
+                            Some(scanned) => match scanned {
+                                // Parse hexadecimal range
+                                '-' => {
+                                    // Advance past dash
+                                    self.advance().unwrap();
+
+                                    from = self.position();
+
+                                    // Current text is start index of range
+                                    let range_start = match isize::from_str_radix(&text, 16) {
+                                        Err(error) => {
+                                            error!("Could not parse number \"{0}\". Got error {1}", text, error);
+                                            return Err(ScanningError::InvalidLiteral(Spanned::new((), starting_from, self.position())));
+                                        },
+                                        Ok(value) => NumericLiteral::Decimal(value)
+                                    };
+
+                                    // Get next number
+                                    let next_number = match self.scan_numerics() {
+                                        Err(error) => return Err(error),
+                                        Ok(scanned) => match scanned {
+                                            ScanningProduct::Token(value) => value,
+                                            other_result => {
+                                                error!("Expected numeric literal for end of range, found instead {0:?}", other_result);
+                                                return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                                            }
+                                        }
+                                    };
+
+                                    // Parse next number
+                                    let range_end = match next_number.item {
+                                        Token::NumericLiteral(value) => value,
+                                        other_value => {
+                                            error!("Expected numeric literal for end of range, found instead {0:?}", other_value);
+                                            return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                                        }
+                                    };
+
+                                    return Ok(ScanningProduct::Token(Spanned::new(Token::NumericRange(range_start, range_end), starting_from, self.position())));
+                                },
+                                _ => match scanned.is_alphanumeric() {
+                                    true => text.push(self.advance().unwrap()),
+                                    false => match usize::from_str_radix(&text, 16) {
+                                        Ok(hex_value) => {
+                                            return Ok(ScanningProduct::Token(Spanned::new(
+                                                Token::NumericLiteral(NumericLiteral::Hexadecimal(hex_value)),
+                                                from,
+                                                self.position()
+                                            )))
+                                        },
+                                        Err(_) => return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
                                     }
                                 }
-                            },
-                            '\n' => {
-                                self.offset = 0;
-                                self.line += 1;
-                                comment.push('\n');
-                            },
-                            c => comment.push(c)
+                            }
                         }
                     }
                 },
-                Some(c) => Err(ScanningError::UnexpectedCharacter(Spanned::new(c, self.position(), self.position()))),
-                None => Err(ScanningError::UnexpectedEndOfFile)
-            },
-            '=' => tok(Token::Equals),
-            ':' => tok(Token::Colon),
-            ';' => tok(Token::SemiColon),
-            '{' => tok(Token::LeftBrace),
-            '}' => tok(Token::RightBrace),
-            '[' => tok(Token::LeftBracket),
-            ']' => tok(Token::RightBracket),
-            '\n' => {
-                self.line += 1;
-                self.offset = 0;
-                Ok(ScanningProduct::Skip)
-            },
-            '"' => self.scan_string_literal(),
-            character if character.is_whitespace() => Ok(ScanningProduct::Skip),
-            character if character.is_numeric() => self.scan_numerics(character),
-            character if character.is_alphanumeric() || character == '_' => self.scan_identifier(character),
-            character => return Err(ScanningError::UnexpectedCharacter(Spanned::new(character, from, self.position())))
+
+                // Decimal Ranges
+                '-' => {
+                    // Advance past dash
+                    self.advance();
+
+                    from = self.position();
+
+                    // Current text is start index of range
+                    let range_start = match isize::from_str_radix(&text, 10) {
+                        Err(error) => {
+                            error!("Could not parse number \"{0}\". Got error {1}", text, error);
+                            return Err(ScanningError::InvalidLiteral(Spanned::new((), starting_from, self.position())));
+                        },
+                        Ok(value) => NumericLiteral::Decimal(value)
+                    };
+
+                    // Get next number
+                    let next_number = match self.scan_numerics() {
+                        Err(error) => return Err(error),
+                        Ok(scanned) => match scanned {
+                            ScanningProduct::Token(value) => value,
+                            other_result => {
+                                error!("Expected numeric literal for end of range, found instead {0:?}", other_result);
+                                return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                            }
+                        }
+                    };
+
+                    // Parse next number
+                    let range_end = match next_number.item {
+                        Token::NumericLiteral(value) => value,
+                        other_value => {
+                            error!("Expected numeric literal for end of range, found instead {0:?}", other_value);
+                            return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                        }
+                    };
+
+                    return Ok(ScanningProduct::Token(Spanned::new(Token::NumericRange(range_start, range_end), starting_from, self.position())));
+                },
+
+                _ => match isize::from_str_radix(&text, 10) {
+                    Ok(decimal_value) => Ok(ScanningProduct::Token(Spanned::new(
+                        Token::NumericLiteral(NumericLiteral::Decimal(decimal_value)),
+                        from,
+                        self.position()
+                    ))),
+                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
+                }
+            }
         }
     }
 
@@ -323,77 +398,141 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         }
     }
 
-    pub fn scan_identifier(&mut self, begin: char) -> ScanningResult {
-        let mut from = self.position();
-        from.offset = from.offset.map(|v| v - 1);
+    pub fn scan_token(&mut self) -> ScanningResult {
+        let from = self.position();
 
-        let mut identifier = String::new();
-        identifier.push(begin);
-
-        loop {
-            match self.peek() {
-                Some(character) if character.is_alphanumeric() || character == '_' => identifier.push(self.advance().unwrap()),
-                _ => {
-                    break;
-                }
+        let character = match self.peek() {
+            Some(c) => c,
+            None => {
+                return Ok(ScanningProduct::Finished);
             }
-        }
+        };
 
         let to = self.position();
+        let token = |t| Ok(ScanningProduct::Token(Spanned::new(t, from, to)));
 
-        Ok(match self.keyword(&identifier) {
-            Some(k) => ScanningProduct::Token(Spanned::new(k, from, to)),
-            None => ScanningProduct::Token(Spanned::new(Token::Identifier(identifier), from, to))
-        })
-    }
+        match character {
+            '/' => {
+                // Advance to the '/'
+                self.advance();
 
-    pub fn scan_numerics(&mut self, begin: char) -> ScanningResult {
-        let mut from = self.position();
-        from.offset = from.offset.map(|v| v - 1);
+                // Peek the next character
+                match self.peek() {
+                    Some('/') => {
+                        self.advance();
 
-        let mut text = String::new();
-        text.push(begin);
+                        let mut comment = String::new();
 
-        while self.peek().unwrap().is_numeric() {
-            text.push(self.advance().unwrap());
-        }
+                        loop {
+                            match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                                token_kind:     "comment",
+                                start_position: from
+                            })? {
+                                '\n' => {
+                                    let to = self.position();
+                                    self.offset = 0;
+                                    self.line += 1;
 
-        match self.peek().unwrap() {
-            '.' => {
-                text.push(self.advance().unwrap());
-                while self.peek().unwrap().is_numeric() {
-                    text.push(self.advance().unwrap());
-                }
-                let to = self.position();
-
-                match text.parse::<f64>() {
-                    Ok(float_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Float(float_value)), from, to))),
-                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
-                }
-            },
-
-            'x' | 'X' => {
-                text.push(self.advance().unwrap());
-                while self.peek().unwrap().is_alphanumeric() {
-                    text.push(self.advance().unwrap());
-                }
-                let to = self.position();
-
-                match text.strip_prefix("0x") {
-                    Some(string) => match usize::from_str_radix(&string, 16) {
-                        Ok(hex_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Hexadecimal(hex_value)), from, to))),
-                        Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                                    return Ok(ScanningProduct::Token(Spanned::new(Token::Comment(comment), from, to)));
+                                },
+                                c => comment.push(c)
+                            }
+                        }
                     },
-                    None => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                    Some('*') => {
+                        self.advance();
+
+                        let from = self.position();
+                        let mut comment = String::new();
+
+                        loop {
+                            match self.advance().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                                token_kind:     "comment",
+                                start_position: from
+                            })? {
+                                '*' => {
+                                    match self.peek().ok_or(ScanningError::UnexpectedEndOfFileWhileParsing {
+                                        token_kind:     "comment",
+                                        start_position: from
+                                    })? {
+                                        '/' => {
+                                            self.advance();
+                                            return Ok(ScanningProduct::Token(Spanned::new(Token::Comment(comment), from, self.position())));
+                                        },
+                                        _ => {
+                                            comment.push('*');
+                                            continue;
+                                        }
+                                    }
+                                },
+                                '\n' => {
+                                    self.offset = 0;
+                                    self.line += 1;
+                                    comment.push('\n');
+                                },
+                                c => comment.push(c)
+                            }
+                        }
+                    },
+                    Some(c) => Err(ScanningError::UnexpectedCharacter(Spanned::new(c, self.position(), self.position()))),
+                    None => Err(ScanningError::UnexpectedEndOfFile)
                 }
             },
 
-            _ => {
-                let to = self.position();
-                match isize::from_str_radix(&text, 10) {
-                    Ok(decimal_value) => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Decimal(decimal_value)), from, to))),
-                    Err(_) => Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
-                }
+            '=' => {
+                self.advance();
+                token(Token::Equals)
+            },
+
+            ',' => {
+                self.advance();
+                token(Token::Comma)
+            },
+
+            ':' => {
+                self.advance();
+                token(Token::Colon)
+            },
+            ';' => {
+                self.advance();
+                token(Token::SemiColon)
+            },
+            '{' => {
+                self.advance();
+                token(Token::LeftBrace)
+            },
+            '}' => {
+                self.advance();
+                token(Token::RightBrace)
+            },
+            '[' => {
+                self.advance();
+                token(Token::LeftBracket)
+            },
+            ']' => {
+                self.advance();
+                token(Token::RightBracket)
+            },
+            '"' => {
+                self.advance();
+                self.scan_string_literal()
+            },
+            '\n' => {
+                self.advance();
+                self.line += 1;
+                self.offset = 0;
+                Ok(ScanningProduct::Skip)
+            },
+
+            character if character.is_whitespace() => {
+                self.advance();
+                Ok(ScanningProduct::Skip)
+            },
+            character if character.is_numeric() => self.scan_numerics(),
+            character if character.is_alphanumeric() || character == '_' => self.scan_identifier(),
+            character => {
+                self.advance();
+                return Err(ScanningError::UnexpectedCharacter(Spanned::new(character, from, self.position())));
             }
         }
     }

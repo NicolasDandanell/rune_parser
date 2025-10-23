@@ -29,6 +29,7 @@ pub enum RuneParserError {
     InvalidFilePath,
     FileSystemError,
     IndexCollision,
+    UseOfReservedIndex,
     ExtensionMismatch,
     UndefinedIdentifier,
     MultipleDefinitions,
