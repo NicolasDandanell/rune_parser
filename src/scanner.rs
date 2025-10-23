@@ -87,62 +87,6 @@ pub enum NumericLiteral {
     Float(f64)
 }
 
-impl NumericLiteral {
-    pub fn to_string(&self) -> String {
-        match self {
-            NumericLiteral::Float(float) => float.to_string(),
-            NumericLiteral::Decimal(integer) => integer.to_string(),
-            NumericLiteral::Hexadecimal(hex) => format!("0x{0:02X}", hex)
-        }
-    }
-
-    pub fn to_field_index(&self) -> Result<usize, ()> {
-        match self {
-            NumericLiteral::Decimal(decimal) => match decimal {
-                // Legal values
-                0..32 => Ok(*decimal as usize),
-                // Higher than legal values
-                32.. => {
-                    error!("Field index cannot have a value higher than 31!");
-                    return Err(());
-                },
-                // Negative values
-                ..0 => {
-                    error!("Field indexes cannot have negative values!");
-                    return Err(());
-                }
-            },
-            NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
-                // Legal values
-                0..32 => Ok(*hexadecimal as usize),
-                // Higher than legal values
-                32.. => {
-                    error!("Field index cannot have a value higher than 31!");
-                    return Err(());
-                }
-            },
-            // Floating points can be used if they represent an integer value. I have no clue why one would do that though...
-            NumericLiteral::Float(float) => match float.fract() == 0.0 {
-                false => return Err(()),
-                true => match *float as isize {
-                    // Legal values
-                    0..32 => Ok(*float as usize),
-                    // Higher than legal values
-                    32.. => {
-                        error!("Field index cannot have a value higher than 31!");
-                        return Err(());
-                    },
-                    // Negative values
-                    ..0 => {
-                        error!("Field indexes cannot have negative values!");
-                        return Err(());
-                    }
-                }
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Bitfield,

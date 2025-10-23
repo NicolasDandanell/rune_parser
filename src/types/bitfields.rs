@@ -16,6 +16,10 @@ pub enum BitSize {
     Unsigned(usize)
 }
 
+impl BitSize {
+    pub const BIT_SLOT_LIMIT: usize = 64;
+}
+
 #[derive(Debug, Clone)]
 pub struct BitfieldMember {
     pub identifier: String,

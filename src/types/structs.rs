@@ -46,6 +46,8 @@ pub enum FieldSlot {
 }
 
 impl FieldSlot {
+    pub const FIELD_SLOT_LIMIT: usize = 32;
+
     pub fn value(&self) -> usize {
         match self {
             FieldSlot::Numeric(value) => *value,

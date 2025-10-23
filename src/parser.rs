@@ -10,8 +10,123 @@ pub enum ParsingError {
     UnexpectedToken(ItemType),
     UnexpectedEndOfInput,
     ScanningError(ScanningError),
-    InvalidIndex(isize),
+    InvalidBitSlot(NumericLiteral),
+    InvalidIndex(NumericLiteral),
     LogicError
+}
+
+impl NumericLiteral {
+    pub fn to_string(&self) -> String {
+        match self {
+            NumericLiteral::Float(float) => float.to_string(),
+            NumericLiteral::Decimal(integer) => integer.to_string(),
+            NumericLiteral::Hexadecimal(hex) => format!("0x{0:02X}", hex)
+        }
+    }
+
+    pub fn to_field_index(&self) -> Result<usize, ParsingError> {
+        const LIMIT_ISIZE: isize = FieldSlot::FIELD_SLOT_LIMIT as isize;
+        const LIMIT_USIZE: usize = FieldSlot::FIELD_SLOT_LIMIT;
+
+        match self {
+            NumericLiteral::Decimal(decimal) => match decimal {
+                // Legal values
+                0..LIMIT_ISIZE => Ok(*decimal as usize),
+                // Higher than legal values
+                LIMIT_ISIZE.. => {
+                    error!("Field index cannot have a value higher than 31!");
+                    return Err(ParsingError::InvalidIndex(self.clone()));
+                },
+                // Negative values
+                ..0 => {
+                    error!("Field indexes cannot have negative values!");
+                    return Err(ParsingError::InvalidIndex(self.clone()));
+                }
+            },
+            NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
+                // Legal values
+                0..LIMIT_USIZE => Ok(*hexadecimal as usize),
+                // Higher than legal values
+                LIMIT_USIZE.. => {
+                    error!("Field index cannot have a value higher than 31!");
+                    return Err(ParsingError::InvalidIndex(self.clone()));
+                }
+            },
+            // Floating points can be used if they represent an integer value. I have no clue why one would do that though...
+            NumericLiteral::Float(float) => match float.fract() == 0.0 {
+                false => {
+                    error!("Field indexes must have integer values!");
+                    return Err(ParsingError::InvalidIndex(self.clone()))
+                },
+                true => match *float as isize {
+                    // Legal values
+                    0..LIMIT_ISIZE => Ok(*float as usize),
+                    // Higher than legal values
+                    LIMIT_ISIZE.. => {
+                        error!("Field index cannot have a value higher than 31!");
+                        return Err(ParsingError::InvalidIndex(self.clone()));
+                    },
+                    // Negative values
+                    ..0 => {
+                        error!("Field indexes cannot have negative values!");
+                        return Err(ParsingError::InvalidIndex(self.clone()));
+                    }
+                }
+            }
+        }
+    }
+
+    fn to_bit_slot(&self) -> Result<usize, ParsingError> {
+        const LIMIT_ISIZE: isize = BitSize::BIT_SLOT_LIMIT as isize;
+        const LIMIT_USIZE: usize = BitSize::BIT_SLOT_LIMIT;
+
+        match self {
+            NumericLiteral::Decimal(decimal) => match decimal {
+                // Legal values
+                0..LIMIT_ISIZE => Ok(*decimal as usize),
+                // Higher than legal values
+                LIMIT_ISIZE.. => {
+                    error!("Bitfield index cannot have a value higher than 63!");
+                    return Err(ParsingError::InvalidBitSlot(self.clone()));
+                },
+                // Negative values
+                ..0 => {
+                    error!("Bitfield indexes cannot have negative values!");
+                    return Err(ParsingError::InvalidBitSlot(self.clone()));
+                }
+            },
+            NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
+                // Legal values
+                0..LIMIT_USIZE => Ok(*hexadecimal as usize),
+                // Higher than legal values
+                LIMIT_USIZE.. => {
+                    error!("Bitfield index cannot have a value higher than 63!");
+                    return Err(ParsingError::InvalidIndex(self.clone()));
+                }
+            },
+            // Floating points can be used if they represent an integer value. I have no clue why one would do that though...
+            NumericLiteral::Float(float) => match float.fract() == 0.0 {
+                false => {
+                    error!("Bitfield indexes must have integer values!");
+                    return Err(ParsingError::InvalidIndex(self.clone()))
+                },
+                true => match *float as isize {
+                    // Legal values
+                    0..LIMIT_ISIZE => Ok(*float as usize),
+                    // Higher than legal values
+                    LIMIT_ISIZE.. => {
+                        error!("Bitfield index cannot have a value higher than 63!");
+                        return Err(ParsingError::InvalidIndex(self.clone()));
+                    },
+                    // Negative values
+                    ..0 => {
+                        error!("Bitfield indexes cannot have negative values!");
+                        return Err(ParsingError::InvalidIndex(self.clone()));
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl From<ScanningError> for ParsingError {
