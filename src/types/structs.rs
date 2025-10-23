@@ -4,6 +4,7 @@ use crate::types::{BitfieldDefinition, DefineDefinition, EnumDefinition, Standal
 pub struct StructDefinition {
     pub name:            String,
     pub members:         Vec<StructMember>,
+    pub reserved_slots:  Vec<FieldSlot>,
     pub orphan_comments: Vec<StandaloneCommentDefinition>,
     pub comment:         Option<String>
 }
@@ -44,13 +45,32 @@ pub enum FieldSlot {
     Verifier
 }
 
+impl FieldSlot {
+    pub fn value(&self) -> usize {
+        match self {
+            FieldSlot::Numeric(value) => *value,
+            FieldSlot::Verifier => 0
+        }
+    }
+
+    pub fn is_verifier(&self) -> bool {
+        match self {
+            FieldSlot::Verifier => true,
+            _ => false
+        }
+    }
+}
+
+impl PartialEq for FieldSlot {
+    fn eq(&self, other: &FieldSlot) -> bool {
+        self.value() == other.value()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum FieldType {
     /// Used for skipped fields
     Empty,
-
-    /// Used to reserve the index for Verification Fields. Not implemented yet!
-    VerificationReserve,
 
     // 1 byte primitives
     Boolean,
@@ -106,7 +126,6 @@ impl FieldType {
     pub fn print(&self) -> String {
         match self {
             FieldType::Empty => String::from("(empty)"),
-            FieldType::VerificationReserve => String::from("verifier"),
             FieldType::Boolean => String::from("bool"),
             FieldType::Char => String::from("char"),
             FieldType::UByte => String::from("u8"),
@@ -130,11 +149,6 @@ impl PartialEq for FieldType {
         match self {
             FieldType::Empty => match other {
                 FieldType::Empty => return true,
-                _ => return false
-            },
-
-            FieldType::VerificationReserve => match other {
-                FieldType::VerificationReserve => return true,
                 _ => return false
             },
 

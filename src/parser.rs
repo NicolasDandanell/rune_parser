@@ -26,36 +26,6 @@ pub trait TokenSource: std::clone::Clone {
     fn next(&mut self) -> Option<ItemType>;
     fn peek(&mut self) -> Option<&ItemType>;
 
-    fn expect_next(&mut self) -> ParsingResult<ItemType> {
-        match self.next() {
-            None => Err(ParsingError::UnexpectedEndOfInput),
-            Some(token) => Ok(token)
-        }
-    }
-
-    fn expect_token(&mut self, expected_token: Token) -> ParsingResult<ItemType> {
-        match self.expect_next()? {
-            token if *token == expected_token => Ok(token),
-            token => Err(ParsingError::UnexpectedToken(token))
-        }
-    }
-
-    fn expect_identifier(&mut self) -> ParsingResult<Spanned<String>> {
-        let token = self.expect_next()?;
-        match token.item {
-            Token::Identifier(string) => Ok(Spanned::new(string, token.from, token.to)),
-            _ => Err(ParsingError::UnexpectedToken(token))
-        }
-    }
-
-    fn expect_string_literal(&mut self) -> ParsingResult<Spanned<String>> {
-        let token = self.expect_next()?;
-        match token.item {
-            Token::StringLiteral(string) => Ok(Spanned::new(string, token.from, token.to)),
-            _ => Err(ParsingError::UnexpectedToken(token))
-        }
-    }
-
     fn expect_bitfield_size(&mut self) -> ParsingResult<Spanned<BitSize>> {
         let token = self.expect_next()?;
 
@@ -81,6 +51,72 @@ pub trait TokenSource: std::clone::Clone {
                 Ok(Spanned::new(bitfield_size, token.from, token.to))
             },
             _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
+    fn maybe_expect(&mut self, expected_token: Token) -> Option<ItemType> {
+        match TokenSource::peek(self)? {
+            token if token.item == expected_token => Some(self.expect_next().unwrap()),
+            _ => None
+        }
+    }
+
+    fn maybe_expect_comment(&mut self) -> Option<Spanned<String>> {
+        if let Spanned {
+            from: _,
+            to: _,
+            item: Token::Comment(_)
+        } = TokenSource::peek(self)?
+        {
+            let Spanned {
+                from,
+                to,
+                item: Token::Comment(string)
+            } = self.expect_next().unwrap()
+            else {
+                unreachable!()
+            };
+            return Some(Spanned::new(string, from, to));
+        }
+
+        None
+    }
+
+    fn expect_identifier(&mut self) -> ParsingResult<Spanned<String>> {
+        let token = self.expect_next()?;
+        match token.item {
+            Token::Identifier(string) => Ok(Spanned::new(string, token.from, token.to)),
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
+    fn expect_next(&mut self) -> ParsingResult<ItemType> {
+        match self.next() {
+            None => Err(ParsingError::UnexpectedEndOfInput),
+            Some(token) => Ok(token)
+        }
+    }
+
+    fn expect_reserve(&mut self) -> ParsingResult<Spanned<Token>> {
+        let token = self.expect_next()?;
+        match token.item {
+            Token::Reserve => Ok(token),
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
+    fn expect_string_literal(&mut self) -> ParsingResult<Spanned<String>> {
+        let token = self.expect_next()?;
+        match token.item {
+            Token::StringLiteral(string) => Ok(Spanned::new(string, token.from, token.to)),
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
+    fn expect_token(&mut self, expected_token: Token) -> ParsingResult<ItemType> {
+        match self.expect_next()? {
+            token if *token == expected_token => Ok(token),
+            token => Err(ParsingError::UnexpectedToken(token))
         }
     }
 
@@ -136,34 +172,6 @@ pub trait TokenSource: std::clone::Clone {
 
             _ => Err(ParsingError::UnexpectedToken(token))
         }
-    }
-
-    fn maybe_expect(&mut self, expected_token: Token) -> Option<ItemType> {
-        match TokenSource::peek(self)? {
-            token if token.item == expected_token => Some(self.expect_next().unwrap()),
-            _ => None
-        }
-    }
-
-    fn maybe_expect_comment(&mut self) -> Option<Spanned<String>> {
-        if let Spanned {
-            from: _,
-            to: _,
-            item: Token::Comment(_)
-        } = TokenSource::peek(self)?
-        {
-            let Spanned {
-                from,
-                to,
-                item: Token::Comment(string)
-            } = self.expect_next().unwrap()
-            else {
-                unreachable!()
-            };
-            return Some(Spanned::new(string, from, to));
-        }
-
-        None
     }
 }
 
@@ -247,6 +255,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         name:            identifier.item.clone(),
         backing_type:    backing_type.item,
         members:         members,
+        reserved_slots:  Vec::new(),
         comment:         comment,
         orphan_comments: Vec::new()
     });
@@ -382,6 +391,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         backing_type: backing_type.item,
         orphan_comments: orphan_comments,
         members,
+        reserved_values: Vec::new(),
         comment
     })
 }
@@ -448,6 +458,59 @@ fn parse_redefine(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     })
 }
 
+fn parse_reservations(tokens: &mut impl TokenSource) -> Result<Vec<NumericLiteral>, ParsingError> {
+    tokens.expect_reserve()?;
+
+    // A vector with capacity 32 should be plenty in most cases to handle most common use cases for reservations
+    let mut reserved_values: Vec<NumericLiteral> = Vec::with_capacity(0x20);
+
+    // Loop until we find a semicolon
+    loop {
+        let token = tokens.expect_next()?;
+
+        match &token.item {
+            Token::NumericLiteral(value) => reserved_values.push(value.clone()),
+            Token::NumericRange(start, end) => {
+                let mut output_hex: bool = false;
+
+                let start_value: isize = match start {
+                    NumericLiteral::Decimal(value) => *value,
+                    NumericLiteral::Hexadecimal(value) => {
+                        output_hex = true;
+                        *value as isize
+                    },
+                    NumericLiteral::Float(_) => return Err(ParsingError::UnexpectedToken(token))
+                };
+
+                let end_value: isize = match end {
+                    NumericLiteral::Decimal(value) => *value,
+                    NumericLiteral::Hexadecimal(value) => *value as isize,
+                    NumericLiteral::Float(_) => return Err(ParsingError::UnexpectedToken(token))
+                };
+
+                for i in start_value..=end_value {
+                    // Use the first value as reference
+                    match output_hex {
+                        true => reserved_values.push(NumericLiteral::Hexadecimal(i as usize)),
+                        false => reserved_values.push(NumericLiteral::Decimal(i))
+                    }
+                }
+            },
+
+            Token::Comma =>
+            /* Keep parsing */
+            {
+                continue
+            },
+
+            Token::SemiColon => break,
+            _ => return Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
+    return Ok(reserved_values);
+}
+
 fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<StructDefinition, ParsingError> {
     // Get comment if any
     let comment = last_comment.take();
@@ -462,50 +525,91 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
 
     let mut members = Vec::new();
     let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
+    let mut reservations: Vec<FieldSlot> = Vec::new();
 
     loop {
         let comment = tokens.maybe_expect_comment();
 
-        match &comment {
-            // Check for orphan comment
-            Some(comment) => {
-                match tokens.peek() {
-                    None => {
-                        error!("Sudden end of file in the middle of an enum!");
-                        return Err(ParsingError::UnexpectedEndOfInput);
-                    },
-                    Some(next) => match &next.item {
-                        // Create orphan comment from 'comment'
-                        Token::Comment(_) => {
-                            orphan_comments.push(StandaloneCommentDefinition {
-                                comment:  comment.item.to_string(),
-                                position: match members.len() {
-                                    0 => CommentPosition::Start,
-                                    _ => CommentPosition::Middle(members.len())
-                                }
-                            });
+        // Peek next token
+        let peeked_token = match tokens.peek() {
+            Some(token) => token.clone(),
+            None => {
+                error!("Sudden end of file in the middle of a struct!");
+                return Err(ParsingError::UnexpectedEndOfInput);
+            }
+        };
 
-                            continue;
-                        },
+        // Check for orphan comments or reservations
+        // ——————————————————————————————————————————
 
-                        // Create orphan comment from 'comment'
-                        Token::RightBrace => {
-                            orphan_comments.push(StandaloneCommentDefinition {
-                                comment:  comment.item.to_string(),
-                                position: CommentPosition::End
-                            });
-
-                            tokens.expect_token(Token::RightBrace)?;
-                            break;
-                        },
-
-                        // Parse next item entry normally
-                        _ => ()
-                    }
+        match peeked_token.item {
+            // Create orphan comment from previous 'comment'
+            Token::Comment(_) => match comment {
+                Some(comment) => {
+                    orphan_comments.push(StandaloneCommentDefinition {
+                        comment:  comment.item.to_string(),
+                        position: match members.len() {
+                            0 => CommentPosition::Start,
+                            _ => CommentPosition::Middle(members.len())
+                        }
+                    });
+                    continue;
+                },
+                None => {
+                    error!("Triggered orphan comment without previous comment! Something went wrong");
+                    return Err(ParsingError::LogicError);
                 }
             },
-            None => ()
-        };
+            // Create orphan comment from previous 'comment'
+            Token::RightBrace => match comment {
+                Some(comment) => {
+                    orphan_comments.push(StandaloneCommentDefinition {
+                        comment:  comment.item.to_string(),
+                        position: match members.len() {
+                            0 => CommentPosition::Start,
+                            _ => CommentPosition::Middle(members.len())
+                        }
+                    });
+
+                    tokens.expect_token(Token::RightBrace)?;
+                    break;
+                },
+                None => {
+                    error!("Right brace should have been detected already! Something went wrong in parsing");
+                    return Err(ParsingError::LogicError);
+                }
+            },
+            // Parse index reservations
+            Token::Reserve => {
+                match parse_reservations(tokens) {
+                    Err(error) => return Err(error),
+                    Ok(list) => {
+                        for item in list {
+                            // Get reservation list with only valid entries
+                            let field_slot = match item.to_field_index() {
+                                Err(_) => return Err(ParsingError::UnexpectedToken(Spanned::new(Token::NumericLiteral(item), peeked_token.from, peeked_token.to))),
+                                Ok(index) => FieldSlot::Numeric(index)
+                            };
+
+                            // Push field index to reservation list
+                            reservations.push(field_slot);
+                        }
+                    }
+                }
+
+                // End parsing if right brace found, or parse next token if not
+                match tokens.maybe_expect(Token::RightBrace).is_some() {
+                    true => break,
+                    false => continue
+                }
+            },
+
+            // Parse next item entry normally
+            _ => ()
+        }
+
+        // Parse struct member
+        // ————————————————————
 
         let field_ident = tokens.expect_identifier()?;
 
@@ -516,34 +620,11 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
 
         let field_slot_token = tokens.expect_next()?;
         let field_slot: FieldSlot = match &field_slot_token.item {
-            Token::NumericLiteral(value) => match value {
-                NumericLiteral::Decimal(decimal) => match decimal {
-                    // Legal values
-                    0..32 => FieldSlot::Numeric(*decimal as usize),
-                    // Higher than legal values
-                    32.. => {
-                        error!("Field index cannot have a value higher than 31!");
-                        return Err(ParsingError::InvalidIndex(*decimal));
-                    },
-                    // Negative values
-                    ..0 => {
-                        error!("Field indexes cannot have negative values!");
-                        return Err(ParsingError::InvalidIndex(*decimal));
-                    }
-                },
-                NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
-                    // Legal values
-                    0..32 => FieldSlot::Numeric(*hexadecimal as usize),
-                    // Higher than legal values
-                    32.. => {
-                        error!("Field index cannot have a value higher than 31!");
-                        return Err(ParsingError::InvalidIndex(*hexadecimal as isize));
-                    }
-                },
-                _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
+            Token::Verifier => FieldSlot::Verifier,
+            Token::NumericLiteral(literal) => match literal.to_field_index() {
+                Err(_) => return Err(ParsingError::UnexpectedToken(field_slot_token)),
+                Ok(index) => FieldSlot::Numeric(index)
             },
-
-            Token::Identifier(s) if s == "verifier" => FieldSlot::Verifier,
             _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
         };
 
@@ -567,6 +648,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     Ok(StructDefinition {
         name: identifier.item,
         members,
+        reserved_slots: reservations,
         orphan_comments,
         comment
     })

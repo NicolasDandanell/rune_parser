@@ -8,8 +8,9 @@ pub struct EnumDefinition {
     pub name:            String,
     pub backing_type:    FieldType,
     pub members:         Vec<EnumMember>,
-    pub orphan_comments: Vec<StandaloneCommentDefinition>,
-    pub comment:         Option<String>
+    pub reserved_values: Vec<NumericLiteral>,
+    pub comment:         Option<String>,
+    pub orphan_comments: Vec<StandaloneCommentDefinition>
 }
 
 #[derive(Debug, Clone)]

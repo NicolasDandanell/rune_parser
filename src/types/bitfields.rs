@@ -1,11 +1,13 @@
-use crate::types::FieldType;
+use crate::types::{FieldType, StandaloneCommentDefinition};
 
 #[derive(Debug, Clone)]
 pub struct BitfieldDefinition {
-    pub name:         String,
-    pub backing_type: FieldType,
-    pub members:      Vec<BitfieldMember>,
-    pub comment:      Option<String>
+    pub name:            String,
+    pub backing_type:    FieldType,
+    pub members:         Vec<BitfieldMember>,
+    pub reserved_slots:  Vec<usize>,
+    pub comment:         Option<String>,
+    pub orphan_comments: Vec<StandaloneCommentDefinition>
 }
 
 #[derive(Debug, Clone)]
