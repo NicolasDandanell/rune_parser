@@ -206,6 +206,7 @@ pub fn validate_names(files: &Vec<RuneFileDescription>) -> Result<(), RuneParser
 // Bitfield validation
 // ————————————————————
 
+/// Check that no two fields have the same index or identifier, and that the total size of the bitfield is valid
 pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
     // Check that there are no two bitfield fields that have the same identifier
     // No use of reserved indexes

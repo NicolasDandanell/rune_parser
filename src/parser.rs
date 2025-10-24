@@ -350,6 +350,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     tokens.expect_token(Token::Colon)?;
     let backing_type = tokens.expect_type()?.item;
 
+    // Validate backing type
     if !backing_type.can_back_bitfield() {
         error!("{0} is not a valid backing type for a bitfield!", backing_type.to_string());
         return Err(ParsingError::InvalidBitfieldBackingType(backing_type));
@@ -512,7 +513,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
     tokens.expect_token(Token::Colon)?;
     let backing_type = tokens.expect_type()?.item;
 
-    // Check against backing type
+    // Validate backing type
     if !backing_type.can_back_enum() {
         error!("{0} is not a valid backing type for an enum!", backing_type.to_string());
         return Err(ParsingError::InvalidEnumBackingType(backing_type));
