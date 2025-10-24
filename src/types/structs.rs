@@ -39,7 +39,7 @@ pub enum ArraySize {
 #[derive(Debug, Clone)]
 pub enum FieldSlot {
     /// Used for regular fields
-    Numeric(usize),
+    Numeric(u64),
 
     /// Used for the verification field. Aliases to 0
     Verifier
@@ -48,7 +48,7 @@ pub enum FieldSlot {
 impl FieldSlot {
     pub const FIELD_SLOT_LIMIT: u64 = 32;
 
-    pub fn value(&self) -> usize {
+    pub fn value(&self) -> u64 {
         match self {
             FieldSlot::Numeric(value) => *value,
             FieldSlot::Verifier => 0

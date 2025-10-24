@@ -9,6 +9,7 @@ pub mod validation;
 use std::{fs::ReadDir, path::Path};
 
 use output::{enable_silent, is_silent};
+use parser::parse_tokens;
 use post_processing::{link_user_definitions, parse_define_statements, parse_extensions};
 use scanner::Scanner;
 use types::Definitions;
@@ -32,6 +33,7 @@ pub enum RuneParserError {
     IndexCollision,
     NameCollision,
     ValueCollision,
+    InvalidTotalBitfieldSize,
     UseOfReservedIndex,
     ExtensionMismatch,
     UndefinedIdentifier,
@@ -94,6 +96,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
             Ok(path) => path
         };
 
+        // Scan file for tokens
         let tokens = match Scanner::new(file.chars()).scan_all() {
             Err(error) => {
                 error!("Error while scanning file {0}: {1:#?}", filepath, error);
@@ -102,7 +105,8 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
             Ok(tokens) => tokens
         };
 
-        let types: Definitions = match parser::parse_tokens(&mut tokens.into_iter().peekable()) {
+        // Parse all scanned tokens
+        let types: Definitions = match parse_tokens(&mut tokens.into_iter().peekable()) {
             Err(error) => {
                 error!("Error while parsing file {0}: {1:#?}", filepath, error);
                 continue;

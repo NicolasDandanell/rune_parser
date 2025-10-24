@@ -29,7 +29,7 @@ impl NumericLiteral {
         }
     }
 
-    pub fn to_field_index(&self) -> Result<usize, ParsingError> {
+    pub fn to_field_index(&self) -> Result<u64, ParsingError> {
         match self {
             NumericLiteral::Boolean(_) => {
                 error!("Boolean values are not valid as field indexes");
@@ -37,7 +37,7 @@ impl NumericLiteral {
             },
             NumericLiteral::PositiveDecimal(decimal) => match decimal {
                 // Legal values
-                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*decimal as usize),
+                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*decimal),
                 // Higher than legal values
                 FieldSlot::FIELD_SLOT_LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
@@ -50,7 +50,7 @@ impl NumericLiteral {
             },
             NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
                 // Legal values
-                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*hexadecimal as usize),
+                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*hexadecimal),
                 // Higher than legal values
                 FieldSlot::FIELD_SLOT_LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
@@ -71,7 +71,7 @@ impl NumericLiteral {
                     false => {
                         match *float as u64 {
                             // Legal values
-                            0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*float as usize),
+                            0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*float as u64),
                             // Higher than legal values
                             FieldSlot::FIELD_SLOT_LIMIT.. => {
                                 error!("Field index cannot have a value higher than 31!");
@@ -84,7 +84,7 @@ impl NumericLiteral {
         }
     }
 
-    fn to_bit_slot(&self) -> Result<usize, ParsingError> {
+    fn to_bit_slot(&self) -> Result<u64, ParsingError> {
         match self {
             NumericLiteral::Boolean(_) => {
                 error!("Boolean values are not valid as bitfield indexes");
@@ -92,7 +92,7 @@ impl NumericLiteral {
             },
             NumericLiteral::PositiveDecimal(decimal) => match decimal {
                 // Legal values
-                0..BitSize::BIT_SLOT_LIMIT => Ok(*decimal as usize),
+                0..BitSize::BIT_SLOT_LIMIT => Ok(*decimal),
                 // Higher than legal values
                 BitSize::BIT_SLOT_LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
@@ -105,7 +105,7 @@ impl NumericLiteral {
             },
             NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
                 // Legal values
-                0..BitSize::BIT_SLOT_LIMIT => Ok(*hexadecimal as usize),
+                0..BitSize::BIT_SLOT_LIMIT => Ok(*hexadecimal),
                 // Higher than legal values
                 BitSize::BIT_SLOT_LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
@@ -126,7 +126,7 @@ impl NumericLiteral {
                         },
                         false => match *float as u64 {
                             // Legal values
-                            0..BitSize::BIT_SLOT_LIMIT => Ok(*float as usize),
+                            0..BitSize::BIT_SLOT_LIMIT => Ok(*float as u64),
                             // Higher than legal values
                             BitSize::BIT_SLOT_LIMIT.. => {
                                 error!("Bitfield index cannot have a value higher than 63!");
@@ -164,7 +164,7 @@ pub trait TokenSource: std::clone::Clone {
                     _ => return Err(ParsingError::UnexpectedToken(token))
                 };
 
-                let size: usize = match string[1..].parse() {
+                let size: u64 = match string[1..].parse() {
                     Err(_) => return Err(ParsingError::UnexpectedToken(token)),
                     Ok(number) => number
                 };
@@ -359,7 +359,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     tokens.expect_token(Token::LeftBrace)?;
     let mut members = Vec::new();
     let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
-    let mut reserved_slots: Vec<usize> = Vec::new();
+    let mut reserved_slots: Vec<u64> = Vec::new();
 
     loop {
         // Get comment if any
