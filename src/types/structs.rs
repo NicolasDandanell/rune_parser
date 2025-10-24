@@ -31,24 +31,24 @@ pub enum UserDefinitionLink {
 
 #[derive(Debug, Clone)]
 pub enum ArraySize {
-    DecimalValue(usize),
-    HexValue(usize),
+    DecimalValue(u64),
+    HexValue(u64),
     UserDefinition(DefineDefinition)
 }
 
 #[derive(Debug, Clone)]
 pub enum FieldSlot {
     /// Used for regular fields
-    Numeric(usize),
+    Numeric(u64),
 
     /// Used for the verification field. Aliases to 0
     Verifier
 }
 
 impl FieldSlot {
-    pub const FIELD_SLOT_LIMIT: usize = 32;
+    pub const FIELD_SLOT_LIMIT: u64 = 32;
 
-    pub fn value(&self) -> usize {
+    pub fn value(&self) -> u64 {
         match self {
             FieldSlot::Numeric(value) => *value,
             FieldSlot::Verifier => 0
@@ -104,7 +104,7 @@ impl ArraySize {
         match self {
             ArraySize::DecimalValue(value) => format!("{0}", value),
             ArraySize::HexValue(value) => format!("0x{0:02X}", value),
-            ArraySize::UserDefinition(value) => value.identifier.clone()
+            ArraySize::UserDefinition(value) => value.name.clone()
         }
     }
 }
@@ -117,7 +117,7 @@ impl PartialEq for ArraySize {
                 _ => false
             },
             ArraySize::UserDefinition(definition) => match other {
-                ArraySize::UserDefinition(other_definition) => return definition.identifier == other_definition.identifier,
+                ArraySize::UserDefinition(other_definition) => return definition.name == other_definition.name,
                 _ => return false
             }
         }
@@ -125,7 +125,7 @@ impl PartialEq for ArraySize {
 }
 
 impl FieldType {
-    pub fn print(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             FieldType::Empty => String::from("(empty)"),
             FieldType::Boolean => String::from("bool"),
@@ -140,8 +140,15 @@ impl FieldType {
             FieldType::Double => String::from("double"),
             FieldType::ULong => String::from("u64"),
             FieldType::Long => String::from("i64"),
-            FieldType::Array(array_type, array_size) => format!("[{0}; {1}]", array_type.print(), array_size.print()),
+            FieldType::Array(array_type, array_size) => format!("[{0}; {1}]", array_type.to_string(), array_size.print()),
             FieldType::UserDefined(string) => string.clone()
+        }
+    }
+
+    pub fn is_signed(&self) -> bool {
+        match self {
+            FieldType::Int | FieldType::Char | FieldType::Byte | FieldType::Long | FieldType::Short | FieldType::Float | FieldType::Double => true,
+            _ => false
         }
     }
 }

@@ -76,8 +76,8 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         error!(
                             "Two extensions of {0} have mismatching backing types {1} and {2}",
                             bitfield_extensions[i].definition.name,
-                            bitfield_extensions[i].definition.backing_type.print(),
-                            bitfield_extensions[z].definition.backing_type.print()
+                            bitfield_extensions[i].definition.backing_type.to_string(),
+                            bitfield_extensions[z].definition.backing_type.to_string()
                         );
                         return Err(RuneParserError::ExtensionMismatch);
                     }
@@ -127,8 +127,8 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         error!(
                             "Two extensions of {0} have mismatching backing types {1} and {2}",
                             enum_extensions[i].definition.name,
-                            enum_extensions[i].definition.backing_type.print(),
-                            enum_extensions[z].definition.backing_type.print()
+                            enum_extensions[i].definition.backing_type.to_string(),
+                            enum_extensions[z].definition.backing_type.to_string()
                         );
                         return Err(RuneParserError::ExtensionMismatch);
                     }
@@ -220,8 +220,8 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                             error!(
                                 "Extension to {0} has wrong backing type {1} instead of original type {2}",
                                 bitfield_definition.name,
-                                extension.definition.backing_type.print(),
-                                bitfield_definition.backing_type.print()
+                                extension.definition.backing_type.to_string(),
+                                bitfield_definition.backing_type.to_string()
                             );
                             return Err(RuneParserError::ExtensionMismatch);
                         }
@@ -264,8 +264,8 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                             error!(
                                 "Extension to {0} has wrong backing type {1} instead of original type {2}",
                                 enum_definition.name,
-                                extension.definition.backing_type.print(),
-                                enum_definition.backing_type.print()
+                                extension.definition.backing_type.to_string(),
+                                enum_definition.backing_type.to_string()
                             );
                             return Err(RuneParserError::ExtensionMismatch);
                         }
@@ -356,8 +356,8 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
     if defines_list.len() > 1 {
         for i in 0..(defines_list.len() - 1) {
             for definition in &defines_list[(i + 1)..] {
-                if defines_list[i].identifier == definition.identifier {
-                    error!("Found duplicate definition of {0}. Aborting parsing.", defines_list[i].identifier);
+                if defines_list[i].name == definition.name {
+                    error!("Found duplicate definition of {0}. Aborting parsing.", defines_list[i].name);
                     return Err(RuneParserError::MultipleDefinitions);
                 }
             }
@@ -368,8 +368,8 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
     if redefines_list.len() > 1 {
         for i in 0..(redefines_list.len() - 1) {
             for redefinition in &redefines_list[(i + 1)..] {
-                if redefines_list[i].identifier == redefinition.identifier {
-                    error!("Multiple redefinitions of {0}! Only a single redefinition of a define is supported.", redefines_list[i].identifier);
+                if redefines_list[i].name == redefinition.name {
+                    error!("Multiple redefinitions of {0}! Only a single redefinition of a define is supported.", redefines_list[i].name);
                     return Err(RuneParserError::MultipleRedefinitions);
                 }
             }
@@ -383,8 +383,8 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
         // Find all definitions in the file, and check to see if there is any redefinition for it
         for define_definition in &mut file.definitions.defines {
             for i in 0..redefines_list.len() {
-                // Check to see if identifiers match
-                if define_definition.identifier == redefines_list[i].identifier {
+                // Check to see if names match
+                if define_definition.name == redefines_list[i].name {
                     // Add redefinition to the define
                     define_definition.redefinition = Some(redefines_list[i].clone());
 
@@ -408,7 +408,7 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
                                 // Find define value
                                 for user_define in &defines_list {
                                     // Match with identifier string
-                                    if user_define.identifier == definition.identifier {
+                                    if user_define.name == definition.name {
                                         // Check for redefinition
                                         let define_value: &DefineValue = match &user_define.redefinition {
                                             None => &user_define.value,
@@ -418,15 +418,15 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
                                         // Parse the value. Only integer values are valid
                                         match define_value {
                                             DefineValue::NumericLiteral(value) => match value {
-                                                NumericLiteral::Decimal(_) => definition.value = DefineValue::NumericLiteral(value.clone()),
+                                                NumericLiteral::PositiveDecimal(_) => definition.value = DefineValue::NumericLiteral(value.clone()),
                                                 NumericLiteral::Hexadecimal(_) => definition.value = DefineValue::NumericLiteral(value.clone()),
                                                 _ => {
-                                                    error!("Could not parse {0} into a valid integer value!", definition.identifier);
+                                                    error!("Could not parse {0} into a valid positive integer value!", definition.name);
                                                     return Err(RuneParserError::InvalidNumericValue);
                                                 }
                                             },
                                             _ => {
-                                                error!("Could not parse {0} into a valid integer value!", definition.identifier);
+                                                error!("Could not parse {0} into a valid positive integer value!", definition.name);
                                                 return Err(RuneParserError::InvalidNumericValue);
                                             }
                                         }
@@ -443,10 +443,7 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
     }
 
     for orphan_redefinition in redefines_list {
-        warning!(
-            "Define statement for redefinition {0} not found, so it will thus be ignored and do nothing.",
-            orphan_redefinition.identifier
-        );
+        warning!("Define statement for redefinition {0} not found, so it will thus be ignored and do nothing.", orphan_redefinition.name);
     }
 
     return Ok(());

@@ -12,42 +12,47 @@ pub enum ParsingError {
     ScanningError(ScanningError),
     InvalidBitSlot(NumericLiteral),
     InvalidIndex(NumericLiteral),
+    InvalidBitfieldBackingType(FieldType),
+    InvalidEnumBackingType(FieldType),
+    InvalidEnumValue(NumericLiteral),
     LogicError
 }
 
 impl NumericLiteral {
     pub fn to_string(&self) -> String {
         match self {
+            NumericLiteral::Boolean(boolean) => boolean.to_string(),
             NumericLiteral::Float(float) => float.to_string(),
-            NumericLiteral::Decimal(integer) => integer.to_string(),
+            NumericLiteral::PositiveDecimal(integer) => integer.to_string(),
+            NumericLiteral::NegativeDecimal(integer) => integer.to_string(),
             NumericLiteral::Hexadecimal(hex) => format!("0x{0:02X}", hex)
         }
     }
 
-    pub fn to_field_index(&self) -> Result<usize, ParsingError> {
-        const LIMIT_ISIZE: isize = FieldSlot::FIELD_SLOT_LIMIT as isize;
-        const LIMIT_USIZE: usize = FieldSlot::FIELD_SLOT_LIMIT;
-
+    pub fn to_field_index(&self) -> Result<u64, ParsingError> {
         match self {
-            NumericLiteral::Decimal(decimal) => match decimal {
+            NumericLiteral::Boolean(_) => {
+                error!("Boolean values are not valid as field indexes");
+                return Err(ParsingError::InvalidIndex(self.clone()));
+            },
+            NumericLiteral::PositiveDecimal(decimal) => match decimal {
                 // Legal values
-                0..LIMIT_ISIZE => Ok(*decimal as usize),
+                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*decimal),
                 // Higher than legal values
-                LIMIT_ISIZE.. => {
+                FieldSlot::FIELD_SLOT_LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
-                    return Err(ParsingError::InvalidIndex(self.clone()));
-                },
-                // Negative values
-                ..0 => {
-                    error!("Field indexes cannot have negative values!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 }
             },
+            NumericLiteral::NegativeDecimal(_) => {
+                error!("Field indexes cannot have negative values!");
+                return Err(ParsingError::InvalidIndex(self.clone()));
+            },
             NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
                 // Legal values
-                0..LIMIT_USIZE => Ok(*hexadecimal as usize),
+                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*hexadecimal),
                 // Higher than legal values
-                LIMIT_USIZE.. => {
+                FieldSlot::FIELD_SLOT_LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 }
@@ -58,48 +63,51 @@ impl NumericLiteral {
                     error!("Field indexes must have integer values!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 },
-                true => match *float as isize {
-                    // Legal values
-                    0..LIMIT_ISIZE => Ok(*float as usize),
-                    // Higher than legal values
-                    LIMIT_ISIZE.. => {
-                        error!("Field index cannot have a value higher than 31!");
-                        return Err(ParsingError::InvalidIndex(self.clone()));
-                    },
-                    // Negative values
-                    ..0 => {
+                true => match *float < 0.0 {
+                    true => {
                         error!("Field indexes cannot have negative values!");
                         return Err(ParsingError::InvalidIndex(self.clone()));
+                    },
+                    false => {
+                        match *float as u64 {
+                            // Legal values
+                            0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*float as u64),
+                            // Higher than legal values
+                            FieldSlot::FIELD_SLOT_LIMIT.. => {
+                                error!("Field index cannot have a value higher than 31!");
+                                return Err(ParsingError::InvalidIndex(self.clone()));
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    fn to_bit_slot(&self) -> Result<usize, ParsingError> {
-        const LIMIT_ISIZE: isize = BitSize::BIT_SLOT_LIMIT as isize;
-        const LIMIT_USIZE: usize = BitSize::BIT_SLOT_LIMIT;
-
+    fn to_bit_slot(&self) -> Result<u64, ParsingError> {
         match self {
-            NumericLiteral::Decimal(decimal) => match decimal {
+            NumericLiteral::Boolean(_) => {
+                error!("Boolean values are not valid as bitfield indexes");
+                return Err(ParsingError::InvalidIndex(self.clone()));
+            },
+            NumericLiteral::PositiveDecimal(decimal) => match decimal {
                 // Legal values
-                0..LIMIT_ISIZE => Ok(*decimal as usize),
+                0..BitSize::BIT_SLOT_LIMIT => Ok(*decimal),
                 // Higher than legal values
-                LIMIT_ISIZE.. => {
+                BitSize::BIT_SLOT_LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
-                    return Err(ParsingError::InvalidBitSlot(self.clone()));
-                },
-                // Negative values
-                ..0 => {
-                    error!("Bitfield indexes cannot have negative values!");
                     return Err(ParsingError::InvalidBitSlot(self.clone()));
                 }
             },
+            NumericLiteral::NegativeDecimal(_) => {
+                error!("Bitfield indexes cannot have negative values!");
+                return Err(ParsingError::InvalidBitSlot(self.clone()));
+            },
             NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
                 // Legal values
-                0..LIMIT_USIZE => Ok(*hexadecimal as usize),
+                0..BitSize::BIT_SLOT_LIMIT => Ok(*hexadecimal),
                 // Higher than legal values
-                LIMIT_USIZE.. => {
+                BitSize::BIT_SLOT_LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 }
@@ -110,18 +118,21 @@ impl NumericLiteral {
                     error!("Bitfield indexes must have integer values!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 },
-                true => match *float as isize {
-                    // Legal values
-                    0..LIMIT_ISIZE => Ok(*float as usize),
-                    // Higher than legal values
-                    LIMIT_ISIZE.. => {
-                        error!("Bitfield index cannot have a value higher than 63!");
-                        return Err(ParsingError::InvalidIndex(self.clone()));
-                    },
-                    // Negative values
-                    ..0 => {
-                        error!("Bitfield indexes cannot have negative values!");
-                        return Err(ParsingError::InvalidIndex(self.clone()));
+                true => {
+                    match *float < 0.0 {
+                        true => {
+                            error!("Bitfield indexes cannot have negative values!");
+                            return Err(ParsingError::InvalidIndex(self.clone()));
+                        },
+                        false => match *float as u64 {
+                            // Legal values
+                            0..BitSize::BIT_SLOT_LIMIT => Ok(*float as u64),
+                            // Higher than legal values
+                            BitSize::BIT_SLOT_LIMIT.. => {
+                                error!("Bitfield index cannot have a value higher than 63!");
+                                return Err(ParsingError::InvalidIndex(self.clone()));
+                            }
+                        }
                     }
                 }
             }
@@ -153,7 +164,7 @@ pub trait TokenSource: std::clone::Clone {
                     _ => return Err(ParsingError::UnexpectedToken(token))
                 };
 
-                let size: usize = match string[1..].parse() {
+                let size: u64 = match string[1..].parse() {
                     Err(_) => return Err(ParsingError::UnexpectedToken(token)),
                     Ok(number) => number
                 };
@@ -265,14 +276,14 @@ pub trait TokenSource: std::clone::Clone {
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
                     Token::NumericLiteral(value) => match value {
-                        NumericLiteral::Decimal(decimal) => ArraySize::DecimalValue(*decimal as usize),
-                        NumericLiteral::Hexadecimal(hexadecimal) => ArraySize::HexValue(*hexadecimal as usize),
+                        NumericLiteral::PositiveDecimal(decimal) => ArraySize::DecimalValue(*decimal),
+                        NumericLiteral::Hexadecimal(hexadecimal) => ArraySize::HexValue(*hexadecimal),
                         _ => return Err(ParsingError::UnexpectedToken(count_token))
                     },
 
                     // String will generate a user definition, which will be populated with a value in post processing
                     Token::Identifier(string) => ArraySize::UserDefinition(DefineDefinition {
-                        identifier:   string.clone(),
+                        name:         string.clone(),
                         value:        DefineValue::NoValue,
                         comment:      None,
                         redefinition: None
@@ -339,11 +350,17 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     tokens.expect_token(Token::Colon)?;
     let backing_type = tokens.expect_type()?.item;
 
+    // Validate backing type
+    if !backing_type.can_back_bitfield() {
+        error!("{0} is not a valid backing type for a bitfield!", backing_type.to_string());
+        return Err(ParsingError::InvalidBitfieldBackingType(backing_type));
+    }
+
     // Get member fields
     tokens.expect_token(Token::LeftBrace)?;
     let mut members = Vec::new();
     let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
-    let mut reserved_slots: Vec<usize> = Vec::new();
+    let mut reserved_slots: Vec<u64> = Vec::new();
 
     loop {
         // Get comment if any
@@ -376,22 +393,29 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
             for item in parse_reserved(tokens)? {
-                reserved_slots.push(item.to_bit_slot()?);
-            }
+                let slot = item.to_bit_slot()?;
+                match backing_type.validate_bit_slot(&slot) {
+                    true => reserved_slots.push(item.to_bit_slot()?),
+                    false => {
+                        error!("Reserved index {0} in bitfield {1} is not valid within backing type {2}", slot, name, backing_type.to_string());
+                        return Err(ParsingError::InvalidBitSlot(NumericLiteral::PositiveDecimal(slot as u64)));
+                    }
+                }
 
-            // If the next token is a right brace, then the definition has ended, so break and return
-            if tokens.maybe_expect(Token::RightBrace).is_some() {
-                break;
-            }
+                // If the next token is a right brace, then the definition has ended, so break and return
+                if tokens.maybe_expect(Token::RightBrace).is_some() {
+                    break;
+                }
 
-            continue;
+                continue;
+            }
         }
 
         // Parser bitfield member
         // ———————————————————————
 
         // Identifier
-        let field_identifier = tokens.expect_identifier()?;
+        let identifier = tokens.expect_identifier()?.item;
 
         // Bit size
         tokens.expect_token(Token::Colon)?;
@@ -407,11 +431,16 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
             _ => return Err(ParsingError::UnexpectedToken(bit_slot_token))
         };
 
+        if !backing_type.validate_bit_slot(&bit_slot) {
+            error!("Index {0} in bitfield {1} is not valid within backing type {2}", bit_slot, name, backing_type.to_string());
+            return Err(ParsingError::InvalidBitSlot(NumericLiteral::PositiveDecimal(bit_slot as u64)));
+        };
+
         members.push(BitfieldMember {
-            identifier: field_identifier.item.clone(),
-            bit_size:   bit_size,
-            bit_slot:   bit_slot,
-            comment:    comment.map(|s| s.item)
+            identifier,
+            bit_size,
+            bit_slot,
+            comment: comment.map(|s| s.item)
         });
 
         if tokens.maybe_expect(Token::SemiColon).is_none() {
@@ -441,7 +470,7 @@ fn parse_define(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     tokens.expect_next()?;
 
     // Get definition name
-    let identifier = tokens.expect_identifier()?.item;
+    let name = tokens.expect_identifier()?.item;
 
     let value_token = tokens.expect_next()?;
     let value: DefineValue = match value_token.item {
@@ -463,7 +492,7 @@ fn parse_define(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     }; */
 
     Ok(DefineDefinition {
-        identifier,
+        name,
         value,
         comment,
         redefinition: None
@@ -480,9 +509,15 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
     // Get identifier
     let name = tokens.expect_identifier()?.item;
 
+    // Get backing type
     tokens.expect_token(Token::Colon)?;
-
     let backing_type = tokens.expect_type()?.item;
+
+    // Validate backing type
+    if !backing_type.can_back_enum() {
+        error!("{0} is not a valid backing type for an enum!", backing_type.to_string());
+        return Err(ParsingError::InvalidEnumBackingType(backing_type));
+    }
 
     tokens.expect_token(Token::LeftBrace)?;
 
@@ -520,7 +555,18 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
             for item in parse_reserved(tokens)? {
-                reserved_values.push(item);
+                match backing_type.validate_value(&item) {
+                    true => reserved_values.push(item),
+                    false => {
+                        error!(
+                            "Reserved enum value {0} in enum {1} does not conform within backing type {2}",
+                            item.to_string(),
+                            name,
+                            backing_type.to_string()
+                        );
+                        return Err(ParsingError::InvalidEnumValue(item));
+                    }
+                }
             }
 
             // If the next token is a right brace, then the definition has ended, so break and return
@@ -534,20 +580,26 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         // Parse enum member
         // ——————————————————
 
-        let field_ident = tokens.expect_identifier()?;
+        let identifier = tokens.expect_identifier()?.item;
 
         tokens.expect_token(Token::Equals)?;
 
-        let enum_value_token = tokens.expect_next()?;
-        let enum_value = match enum_value_token.item {
+        let value_token = tokens.expect_next()?;
+        let value = match value_token.item {
             Token::NumericLiteral(value) => value,
-            _ => return Err(ParsingError::UnexpectedToken(enum_value_token))
+            _ => return Err(ParsingError::UnexpectedToken(value_token))
         };
 
+        // Validate value against backing type
+        if !backing_type.validate_value(&value) {
+            error!("Value {0} in enum {1} does not conform within backing type {2}", value.to_string(), name, backing_type.to_string());
+            return Err(ParsingError::InvalidEnumValue(value));
+        }
+
         members.push(EnumMember {
-            identifier: field_ident.item.clone(),
-            value:      enum_value,
-            comment:    comment.map(|s| s.item)
+            identifier,
+            value,
+            comment: comment.map(|s| s.item)
         });
 
         if tokens.maybe_expect(Token::SemiColon).is_none() {
@@ -614,21 +666,17 @@ fn parse_redefine(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     tokens.expect_next()?;
 
     // Get definition name
-    let definition_name = tokens.expect_identifier()?;
+    let name = tokens.expect_identifier()?.item;
 
-    let redefine_value_token = tokens.expect_next()?;
-    let redefine_value: DefineValue = match redefine_value_token.item {
+    let value_token = tokens.expect_next()?;
+    let value: DefineValue = match value_token.item {
         Token::NumericLiteral(value) => DefineValue::NumericLiteral(value),
-        _ => return Err(ParsingError::UnexpectedToken(redefine_value_token))
+        _ => return Err(ParsingError::UnexpectedToken(value_token))
     };
 
     tokens.expect_token(Token::SemiColon)?;
 
-    Ok(RedefineDefinition {
-        identifier: definition_name.item,
-        value:      redefine_value,
-        comment:    comment
-    })
+    Ok(RedefineDefinition { name, value, comment })
 }
 
 fn parse_reserved(tokens: &mut impl TokenSource) -> Result<Vec<NumericLiteral>, ParsingError> {
@@ -646,26 +694,30 @@ fn parse_reserved(tokens: &mut impl TokenSource) -> Result<Vec<NumericLiteral>, 
             Token::NumericRange(start, end) => {
                 let mut output_hex: bool = false;
 
-                let start_value: isize = match start {
-                    NumericLiteral::Decimal(value) => *value,
+                let start_value: u64 = match start {
+                    NumericLiteral::Boolean(_) => return Err(ParsingError::UnexpectedToken(token)),
+                    NumericLiteral::PositiveDecimal(value) => *value,
                     NumericLiteral::Hexadecimal(value) => {
                         output_hex = true;
-                        *value as isize
+                        *value
                     },
+                    NumericLiteral::NegativeDecimal(_) => return Err(ParsingError::UnexpectedToken(token)),
                     NumericLiteral::Float(_) => return Err(ParsingError::UnexpectedToken(token))
                 };
 
-                let end_value: isize = match end {
-                    NumericLiteral::Decimal(value) => *value,
-                    NumericLiteral::Hexadecimal(value) => *value as isize,
+                let end_value: u64 = match end {
+                    NumericLiteral::Boolean(_) => return Err(ParsingError::UnexpectedToken(token)),
+                    NumericLiteral::PositiveDecimal(value) => *value,
+                    NumericLiteral::Hexadecimal(value) => *value,
+                    NumericLiteral::NegativeDecimal(_) => return Err(ParsingError::UnexpectedToken(token)),
                     NumericLiteral::Float(_) => return Err(ParsingError::UnexpectedToken(token))
                 };
 
                 for i in start_value..=end_value {
                     // Use the first value as reference
                     match output_hex {
-                        true => reserved_values.push(NumericLiteral::Hexadecimal(i as usize)),
-                        false => reserved_values.push(NumericLiteral::Decimal(i))
+                        true => reserved_values.push(NumericLiteral::Hexadecimal(i as u64)),
+                        false => reserved_values.push(NumericLiteral::PositiveDecimal(i as u64))
                     }
                 }
             },
