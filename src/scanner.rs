@@ -83,8 +83,9 @@ impl<T> DerefMut for Spanned<T> {
 #[derive(Debug, Clone)]
 pub enum NumericLiteral {
     Boolean(bool),
-    Decimal(isize),
-    Hexadecimal(usize),
+    PositiveDecimal(u64),
+    NegativeDecimal(i64),
+    Hexadecimal(u64),
     Float(f64)
 }
 
@@ -94,54 +95,71 @@ impl PartialEq for NumericLiteral {
         match self {
             NumericLiteral::Boolean(own_value) => match other {
                 NumericLiteral::Boolean(other_value) => own_value == other_value,
-                NumericLiteral::Decimal(other_value) => *own_value as isize == *other_value,
-                NumericLiteral::Hexadecimal(other_value) => *own_value as usize == *other_value,
+                NumericLiteral::PositiveDecimal(other_value) => *own_value as u64 == *other_value,
+                NumericLiteral::NegativeDecimal(_) => false,
+                NumericLiteral::Hexadecimal(other_value) => *own_value as u64 == *other_value,
                 NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
                     false => false,
-                    true => *own_value as isize == *other_value as isize
+                    true => *own_value as i64 == *other_value as i64
                 }
             },
-            NumericLiteral::Decimal(own_value) => match other {
-                NumericLiteral::Boolean(other_value) => *own_value == *other_value as isize,
-                NumericLiteral::Decimal(other_value) => *own_value == *other_value,
-                NumericLiteral::Hexadecimal(other_value) => match own_value {
-                    ..0 => false,
-                    0.. => *own_value as usize == *other_value
-                },
-                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
-                    false => false,
-                    true => *own_value == *other_value as isize
-                }
-            },
-            NumericLiteral::Hexadecimal(own_value) => match other {
-                NumericLiteral::Boolean(other_value) => *own_value == *other_value as usize,
-                NumericLiteral::Decimal(other_value) => match other_value {
-                    ..0 => false,
-                    0.. => *own_value == *other_value as usize
-                },
+            NumericLiteral::PositiveDecimal(own_value) => match other {
+                NumericLiteral::Boolean(other_value) => *own_value == *other_value as u64,
+                NumericLiteral::PositiveDecimal(other_value) => *own_value == *other_value,
+                NumericLiteral::NegativeDecimal(_) => false,
                 NumericLiteral::Hexadecimal(other_value) => *own_value == *other_value,
                 NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
                     false => false,
-                    true => match *other_value as isize {
-                        ..0 => false,
-                        0.. => *own_value == *other_value as usize
+                    true => match *other_value < 0.0 {
+                        true => false,
+                        false => *own_value == *other_value as u64
+                    }
+                }
+            },
+            NumericLiteral::NegativeDecimal(own_value) => match other {
+                NumericLiteral::Boolean(_) => false,
+                NumericLiteral::PositiveDecimal(_) => false,
+                NumericLiteral::NegativeDecimal(other_value) => *own_value == *other_value,
+                NumericLiteral::Hexadecimal(_) => false,
+                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
+                    false => false,
+                    true => *own_value == *other_value as i64
+                }
+            },
+            NumericLiteral::Hexadecimal(own_value) => match other {
+                NumericLiteral::Boolean(other_value) => *own_value == *other_value as u64,
+                NumericLiteral::PositiveDecimal(other_value) => *own_value == *other_value,
+                NumericLiteral::NegativeDecimal(_) => false,
+                NumericLiteral::Hexadecimal(other_value) => *own_value == *other_value,
+                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
+                    false => false,
+                    true => match *other_value < 0.0 {
+                        true => false,
+                        false => *own_value == *other_value as u64
                     }
                 }
             },
             NumericLiteral::Float(own_value) => match other {
                 NumericLiteral::Boolean(other_value) => match own_value.fract() == 0.0 {
                     false => false,
-                    true => *own_value as isize == *other_value as isize
+                    true => *own_value as i64 == *other_value as i64
                 },
-                NumericLiteral::Decimal(other_value) => match own_value.fract() == 0.0 {
+                NumericLiteral::PositiveDecimal(other_value) => match own_value.fract() == 0.0 {
                     false => false,
-                    true => *own_value as isize == *other_value
+                    true => match *own_value < 0.0 {
+                        true => false,
+                        false => *own_value as u64 == *other_value
+                    }
+                },
+                NumericLiteral::NegativeDecimal(other_value) => match own_value.fract() == 0.0 {
+                    false => false,
+                    true => *own_value as i64 == *other_value
                 },
                 NumericLiteral::Hexadecimal(other_value) => match own_value.fract() == 0.0 {
                     false => false,
-                    true => match *own_value as isize {
-                        ..0 => false,
-                        0.. => *own_value as usize == *other_value
+                    true => match *own_value < 0.0 {
+                        true => false,
+                        false => *own_value as u64 == *other_value
                     }
                 },
                 NumericLiteral::Float(other_value) => *own_value == *other_value
@@ -339,12 +357,12 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                                     from = self.position();
 
                                     // Current text is start index of range
-                                    let range_start = match isize::from_str_radix(&text, 16) {
+                                    let range_start = match u64::from_str_radix(&text, 16) {
                                         Err(error) => {
                                             error!("Could not parse number \"{0}\". Got error {1}", text, error);
                                             return Err(ScanningError::InvalidLiteral(Spanned::new((), starting_from, self.position())));
                                         },
-                                        Ok(value) => NumericLiteral::Decimal(value)
+                                        Ok(value) => NumericLiteral::PositiveDecimal(value)
                                     };
 
                                     // Get next number
@@ -372,7 +390,7 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                                 },
                                 _ => match scanned.is_alphanumeric() {
                                     true => text.push(self.advance().unwrap()),
-                                    false => match usize::from_str_radix(&text, 16) {
+                                    false => match u64::from_str_radix(&text, 16) {
                                         Ok(hex_value) => {
                                             return Ok(ScanningProduct::Token(Spanned::new(
                                                 Token::NumericLiteral(NumericLiteral::Hexadecimal(hex_value)),
@@ -396,12 +414,12 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                     from = self.position();
 
                     // Current text is start index of range
-                    let range_start = match isize::from_str_radix(&text, 10) {
+                    let range_start = match u64::from_str_radix(&text, 10) {
                         Err(error) => {
                             error!("Could not parse number \"{0}\". Got error {1}", text, error);
                             return Err(ScanningError::InvalidLiteral(Spanned::new((), starting_from, self.position())));
                         },
-                        Ok(value) => NumericLiteral::Decimal(value)
+                        Ok(value) => NumericLiteral::PositiveDecimal(value)
                     };
 
                     // Get next number
@@ -428,9 +446,9 @@ impl<I: Iterator<Item = char>> Scanner<I> {
                     return Ok(ScanningProduct::Token(Spanned::new(Token::NumericRange(range_start, range_end), starting_from, self.position())));
                 },
 
-                _ => match isize::from_str_radix(&text, 10) {
+                _ => match u64::from_str_radix(&text, 10) {
                     Ok(decimal_value) => Ok(ScanningProduct::Token(Spanned::new(
-                        Token::NumericLiteral(NumericLiteral::Decimal(decimal_value)),
+                        Token::NumericLiteral(NumericLiteral::PositiveDecimal(decimal_value)),
                         from,
                         self.position()
                     ))),

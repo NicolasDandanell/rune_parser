@@ -418,15 +418,15 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
                                         // Parse the value. Only integer values are valid
                                         match define_value {
                                             DefineValue::NumericLiteral(value) => match value {
-                                                NumericLiteral::Decimal(_) => definition.value = DefineValue::NumericLiteral(value.clone()),
+                                                NumericLiteral::PositiveDecimal(_) => definition.value = DefineValue::NumericLiteral(value.clone()),
                                                 NumericLiteral::Hexadecimal(_) => definition.value = DefineValue::NumericLiteral(value.clone()),
                                                 _ => {
-                                                    error!("Could not parse {0} into a valid integer value!", definition.name);
+                                                    error!("Could not parse {0} into a valid positive integer value!", definition.name);
                                                     return Err(RuneParserError::InvalidNumericValue);
                                                 }
                                             },
                                             _ => {
-                                                error!("Could not parse {0} into a valid integer value!", definition.name);
+                                                error!("Could not parse {0} into a valid positive integer value!", definition.name);
                                                 return Err(RuneParserError::InvalidNumericValue);
                                             }
                                         }

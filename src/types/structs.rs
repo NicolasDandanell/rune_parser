@@ -31,8 +31,8 @@ pub enum UserDefinitionLink {
 
 #[derive(Debug, Clone)]
 pub enum ArraySize {
-    DecimalValue(usize),
-    HexValue(usize),
+    DecimalValue(u64),
+    HexValue(u64),
     UserDefinition(DefineDefinition)
 }
 
@@ -46,7 +46,7 @@ pub enum FieldSlot {
 }
 
 impl FieldSlot {
-    pub const FIELD_SLOT_LIMIT: usize = 32;
+    pub const FIELD_SLOT_LIMIT: u64 = 32;
 
     pub fn value(&self) -> usize {
         match self {

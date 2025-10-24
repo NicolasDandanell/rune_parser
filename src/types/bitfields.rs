@@ -17,7 +17,7 @@ pub enum BitSize {
 }
 
 impl BitSize {
-    pub const BIT_SLOT_LIMIT: usize = 64;
+    pub const BIT_SLOT_LIMIT: u64 = 64;
 }
 
 #[derive(Debug, Clone)]
