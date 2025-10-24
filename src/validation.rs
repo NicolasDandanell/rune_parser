@@ -156,6 +156,7 @@ pub fn validate_parsed_files(files: &Vec<RuneFileDescription>) -> Result<(), Run
     validate_names(files)?;
 
     // Validate bitfields
+    validate_bitfields(files)?;
 
     // Validate defines - Not needed, as they are mere text replace, and thus have no backing type
 
@@ -263,7 +264,8 @@ pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RunePa
                     bitfield_definition.name,
                     total_bit_size,
                     bitfield_definition.backing_type.to_string()
-                )
+                );
+                return Err(RuneParserError::InvalidTotalBitfieldSize);
             }
         }
     }
