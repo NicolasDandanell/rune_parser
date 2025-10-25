@@ -22,10 +22,13 @@ impl NumericLiteral {
     pub fn to_string(&self) -> String {
         match self {
             NumericLiteral::Boolean(boolean) => boolean.to_string(),
+            NumericLiteral::PositiveBinary(binary) => format!("0b{0:02b}", binary),
+            NumericLiteral::NegativeBinary(binary) => format!("-0b{0:02b}", binary),
             NumericLiteral::Float(float) => float.to_string(),
             NumericLiteral::PositiveDecimal(integer) => integer.to_string(),
             NumericLiteral::NegativeDecimal(integer) => integer.to_string(),
-            NumericLiteral::Hexadecimal(hex) => format!("0x{0:02X}", hex)
+            NumericLiteral::PositiveHexadecimal(hex) => format!("0x{0:02X}", hex),
+            NumericLiteral::NegativeHexadecimal(hex) => format!("-0x{0:02X}", hex)
         }
     }
 
@@ -35,22 +38,9 @@ impl NumericLiteral {
                 error!("Boolean values are not valid as field indexes");
                 return Err(ParsingError::InvalidIndex(self.clone()));
             },
-            NumericLiteral::PositiveDecimal(decimal) => match decimal {
+            NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => match value {
                 // Legal values
-                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*decimal),
-                // Higher than legal values
-                FieldSlot::FIELD_SLOT_LIMIT.. => {
-                    error!("Field index cannot have a value higher than 31!");
-                    return Err(ParsingError::InvalidIndex(self.clone()));
-                }
-            },
-            NumericLiteral::NegativeDecimal(_) => {
-                error!("Field indexes cannot have negative values!");
-                return Err(ParsingError::InvalidIndex(self.clone()));
-            },
-            NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
-                // Legal values
-                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*hexadecimal),
+                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*value),
                 // Higher than legal values
                 FieldSlot::FIELD_SLOT_LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
@@ -80,6 +70,10 @@ impl NumericLiteral {
                         }
                     }
                 }
+            },
+            _ => {
+                error!("Field indexes cannot have negative values!");
+                return Err(ParsingError::InvalidIndex(self.clone()));
             }
         }
     }
@@ -90,22 +84,9 @@ impl NumericLiteral {
                 error!("Boolean values are not valid as bitfield indexes");
                 return Err(ParsingError::InvalidIndex(self.clone()));
             },
-            NumericLiteral::PositiveDecimal(decimal) => match decimal {
+            NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => match value {
                 // Legal values
-                0..BitSize::BIT_SLOT_LIMIT => Ok(*decimal),
-                // Higher than legal values
-                BitSize::BIT_SLOT_LIMIT.. => {
-                    error!("Bitfield index cannot have a value higher than 63!");
-                    return Err(ParsingError::InvalidBitSlot(self.clone()));
-                }
-            },
-            NumericLiteral::NegativeDecimal(_) => {
-                error!("Bitfield indexes cannot have negative values!");
-                return Err(ParsingError::InvalidBitSlot(self.clone()));
-            },
-            NumericLiteral::Hexadecimal(hexadecimal) => match hexadecimal {
-                // Legal values
-                0..BitSize::BIT_SLOT_LIMIT => Ok(*hexadecimal),
+                0..BitSize::BIT_SLOT_LIMIT => Ok(*value),
                 // Higher than legal values
                 BitSize::BIT_SLOT_LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
@@ -135,6 +116,10 @@ impl NumericLiteral {
                         }
                     }
                 }
+            },
+            _ => {
+                error!("Bitfield indexes cannot have negative values!");
+                return Err(ParsingError::InvalidBitSlot(self.clone()));
             }
         }
     }
@@ -276,8 +261,9 @@ pub trait TokenSource: std::clone::Clone {
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
                     Token::NumericLiteral(value) => match value {
-                        NumericLiteral::PositiveDecimal(decimal) => ArraySize::DecimalValue(*decimal),
-                        NumericLiteral::Hexadecimal(hexadecimal) => ArraySize::HexValue(*hexadecimal),
+                        NumericLiteral::PositiveBinary(binary) => ArraySize::Binary(*binary),
+                        NumericLiteral::PositiveDecimal(decimal) => ArraySize::Decimal(*decimal),
+                        NumericLiteral::PositiveHexadecimal(hexadecimal) => ArraySize::Hexadecimal(*hexadecimal),
                         _ => return Err(ParsingError::UnexpectedToken(count_token))
                     },
 
@@ -392,7 +378,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         // Check for reserved values
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
-            for item in parse_reserved(tokens)? {
+            for item in parse_reserved(tokens, false)? {
                 let slot = item.to_bit_slot()?;
                 match backing_type.validate_bit_slot(&slot) {
                     true => reserved_slots.push(item.to_bit_slot()?),
@@ -554,7 +540,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         // Check for reserved values
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
-            for item in parse_reserved(tokens)? {
+            for item in parse_reserved(tokens, true)? {
                 match backing_type.validate_value(&item) {
                     true => reserved_values.push(item),
                     false => {
@@ -679,7 +665,7 @@ fn parse_redefine(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     Ok(RedefineDefinition { name, value, comment })
 }
 
-fn parse_reserved(tokens: &mut impl TokenSource) -> Result<Vec<NumericLiteral>, ParsingError> {
+fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result<Vec<NumericLiteral>, ParsingError> {
     tokens.expect_reserve()?;
 
     // A vector with capacity 32 should be plenty in most cases to handle most common use cases for reserved values
@@ -689,45 +675,116 @@ fn parse_reserved(tokens: &mut impl TokenSource) -> Result<Vec<NumericLiteral>, 
     loop {
         let token = tokens.expect_next()?;
 
+        // Floating point ranges are simply not supported in enums currently due to complexity
         match &token.item {
             Token::NumericLiteral(value) => reserved_values.push(value.clone()),
-            Token::NumericRange(start, end) => {
-                let mut output_hex: bool = false;
+            Token::NumericRange(start_value, end_value) => {
+                let mut negatives: bool = false;
 
-                let start_value: u64 = match start {
-                    NumericLiteral::Boolean(_) => return Err(ParsingError::UnexpectedToken(token)),
-                    NumericLiteral::PositiveDecimal(value) => *value,
-                    NumericLiteral::Hexadecimal(value) => {
-                        output_hex = true;
-                        *value
+                // Verify start
+                match start_value {
+                    // Positives
+                    NumericLiteral::PositiveBinary(_) | NumericLiteral::PositiveDecimal(_) | NumericLiteral::PositiveHexadecimal(_) => (),
+
+                    // Negatives
+                    NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => match allow_negative {
+                        true => negatives = true,
+                        false => return Err(ParsingError::UnexpectedToken(token))
                     },
-                    NumericLiteral::NegativeDecimal(_) => return Err(ParsingError::UnexpectedToken(token)),
-                    NumericLiteral::Float(_) => return Err(ParsingError::UnexpectedToken(token))
+
+                    _ => return Err(ParsingError::UnexpectedToken(token))
                 };
 
-                let end_value: u64 = match end {
-                    NumericLiteral::Boolean(_) => return Err(ParsingError::UnexpectedToken(token)),
-                    NumericLiteral::PositiveDecimal(value) => *value,
-                    NumericLiteral::Hexadecimal(value) => *value,
-                    NumericLiteral::NegativeDecimal(_) => return Err(ParsingError::UnexpectedToken(token)),
-                    NumericLiteral::Float(_) => return Err(ParsingError::UnexpectedToken(token))
+                // Verify end
+                match end_value {
+                    // Positives
+                    NumericLiteral::PositiveBinary(_) | NumericLiteral::PositiveDecimal(_) | NumericLiteral::PositiveHexadecimal(_) => (),
+
+                    // Negatives
+                    NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => match allow_negative {
+                        true => {
+                            if !negatives {
+                                return Err(ParsingError::UnexpectedToken(token));
+                            }
+                        },
+                        false => return Err(ParsingError::UnexpectedToken(token))
+                    },
+
+                    _ => return Err(ParsingError::UnexpectedToken(token))
                 };
 
-                for i in start_value..=end_value {
-                    // Use the first value as reference
-                    match output_hex {
-                        true => reserved_values.push(NumericLiteral::Hexadecimal(i as u64)),
-                        false => reserved_values.push(NumericLiteral::PositiveDecimal(i as u64))
+                // Process range differently depending on if there are negatives
+                match negatives {
+                    // Process signed range
+                    true => {
+                        let start = match start_value {
+                            NumericLiteral::NegativeBinary(value) | NumericLiteral::NegativeDecimal(value) | NumericLiteral::NegativeHexadecimal(value) => *value,
+                            _ => return Err(ParsingError::UnexpectedToken(token))
+                        };
+                        let end = match end_value {
+                            NumericLiteral::NegativeBinary(value) | NumericLiteral::NegativeDecimal(value) | NumericLiteral::NegativeHexadecimal(value) => *value,
+                            _ => return Err(ParsingError::UnexpectedToken(token))
+                        };
+
+                        // Check that end is larger than start
+                        if !(end > start) {
+                            error!("Start of range was larger or equal to end of range");
+                            return Err(ParsingError::LogicError);
+                        }
+
+                        for i in start..end {
+                            // Use the first value as reference
+                            reserved_values.push(match start_value {
+                                NumericLiteral::PositiveBinary(_) | NumericLiteral::NegativeBinary(_) => match i < 0 {
+                                    true => NumericLiteral::NegativeBinary(i),
+                                    false => NumericLiteral::PositiveBinary(i as u64)
+                                },
+                                NumericLiteral::PositiveDecimal(_) | NumericLiteral::NegativeDecimal(_) => match i < 0 {
+                                    true => NumericLiteral::NegativeDecimal(i),
+                                    false => NumericLiteral::PositiveDecimal(i as u64)
+                                },
+                                NumericLiteral::PositiveHexadecimal(_) | NumericLiteral::NegativeHexadecimal(_) => match i < 0 {
+                                    true => NumericLiteral::NegativeHexadecimal(i),
+                                    false => NumericLiteral::PositiveHexadecimal(i as u64)
+                                },
+                                _ => return Err(ParsingError::UnexpectedToken(token))
+                            })
+                        }
+                    },
+                    // Process unsigned range
+                    false => {
+                        let start = match start_value {
+                            NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => *value,
+                            _ => return Err(ParsingError::UnexpectedToken(token))
+                        };
+                        let end = match end_value {
+                            NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => *value,
+                            _ => return Err(ParsingError::UnexpectedToken(token))
+                        };
+
+                        // Check that end is larger than start
+                        if !(end > start) {
+                            error!("Start of range was larger or equal to end of range");
+                            return Err(ParsingError::LogicError);
+                        }
+
+                        for i in start..end {
+                            // Use the first value as reference
+                            reserved_values.push(match start_value {
+                                NumericLiteral::PositiveBinary(_) => NumericLiteral::PositiveBinary(i),
+                                NumericLiteral::PositiveDecimal(_) => NumericLiteral::PositiveDecimal(i),
+                                NumericLiteral::PositiveHexadecimal(_) => NumericLiteral::PositiveHexadecimal(i),
+                                _ => return Err(ParsingError::UnexpectedToken(token))
+                            })
+                        }
                     }
                 }
             },
 
-            Token::Comma =>
-            /* Keep parsing */
-            {
-                continue
-            },
+            // Keep parsing
+            Token::Comma => continue,
 
+            // Done parsing
             Token::SemiColon => break,
             _ => return Err(ParsingError::UnexpectedToken(token))
         }
@@ -781,7 +838,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
         // Check for reserved values
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
-            for item in parse_reserved(tokens)? {
+            for item in parse_reserved(tokens, false)? {
                 reserved_slots.push(FieldSlot::Numeric(item.to_field_index()?));
             }
 

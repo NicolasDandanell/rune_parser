@@ -31,8 +31,9 @@ pub enum UserDefinitionLink {
 
 #[derive(Debug, Clone)]
 pub enum ArraySize {
-    DecimalValue(u64),
-    HexValue(u64),
+    Binary(u64),
+    Decimal(u64),
+    Hexadecimal(u64),
     UserDefinition(DefineDefinition)
 }
 
@@ -100,10 +101,11 @@ pub enum FieldType {
 }
 
 impl ArraySize {
-    pub fn print(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
-            ArraySize::DecimalValue(value) => format!("{0}", value),
-            ArraySize::HexValue(value) => format!("0x{0:02X}", value),
+            ArraySize::Binary(value) => format!("0b{0:b}", value),
+            ArraySize::Decimal(value) => format!("{0}", value),
+            ArraySize::Hexadecimal(value) => format!("0x{0:02X}", value),
             ArraySize::UserDefinition(value) => value.name.clone()
         }
     }
@@ -112,8 +114,8 @@ impl ArraySize {
 impl PartialEq for ArraySize {
     fn eq(&self, other: &ArraySize) -> bool {
         match self {
-            ArraySize::DecimalValue(value) | ArraySize::HexValue(value) => match other {
-                ArraySize::DecimalValue(other_value) | ArraySize::HexValue(other_value) => return value == other_value,
+            ArraySize::Binary(value) | ArraySize::Decimal(value) | ArraySize::Hexadecimal(value) => match other {
+                ArraySize::Binary(other_value) | ArraySize::Decimal(other_value) | ArraySize::Hexadecimal(other_value) => return value == other_value,
                 _ => false
             },
             ArraySize::UserDefinition(definition) => match other {
@@ -140,7 +142,7 @@ impl FieldType {
             FieldType::Double => String::from("double"),
             FieldType::ULong => String::from("u64"),
             FieldType::Long => String::from("i64"),
-            FieldType::Array(array_type, array_size) => format!("[{0}; {1}]", array_type.to_string(), array_size.print()),
+            FieldType::Array(array_type, array_size) => format!("[{0}; {1}]", array_type.to_string(), array_size.to_string()),
             FieldType::UserDefined(string) => string.clone()
         }
     }
