@@ -200,7 +200,6 @@ pub enum ScanningProduct {
 pub enum ScanningError {
     UnexpectedCharacter(Spanned<char>),
     InvalidLiteral(Spanned<()>),
-
     UnexpectedEndOfFile,
     UnexpectedEndOfFileWhileParsing { token_kind: &'static str, start_position: Position }
 }
@@ -316,6 +315,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
 
     pub fn extract_number(string: &String, from: Position, to: Position) -> Result<NumericLiteral, ScanningError> {
         if string.is_empty() {
+            error!("Tried parsing an empty literal numeric value!");
             return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
         }
 
@@ -340,7 +340,10 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             },
             NumberType::Binary => {
                 let parsed_string = match string.strip_prefix("0b") {
-                    None => return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                    None => {
+                        error!("Could not parse numeric value! Literal had value '0b', but not as prefix");
+                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
+                    },
                     Some(stripped) => String::from(stripped)
                 };
 
@@ -381,7 +384,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                 let parsed_string = match string.strip_prefix("0x") {
                     None => match string.strip_prefix("0X") {
                         None => {
-                            error!("Could not parse numeric value! Got error {0}", error);
+                            error!("Could not parse numeric value! Literal had value '0x' or '0X', but not as prefix");
                             return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
                         },
                         Some(stripped) => String::from(stripped)
@@ -437,14 +440,16 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                         let end: NumericLiteral = Self::extract_number(&String::from(strings[1].trim()), from, self.position())?;
                         Ok(ScanningProduct::Token(Spanned::new(Token::NumericRange(start, end), from, self.position())))
                     },
-                    _ => Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
+                    _ => {
+                        error!("Invalid range declaration");
+                        Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
+                    }
                 }
             },
-            false => Ok(ScanningProduct::Token(Spanned::new(
-                Token::NumericLiteral(Self::extract_number(&String::from(text.trim()), from, self.position())?),
-                from,
-                self.position()
-            )))
+            false => {
+                let number: NumericLiteral = Self::extract_number(&String::from(text.trim()), from, self.position())?;
+                Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(number), from, self.position())))
+            }
         }
     }
 
