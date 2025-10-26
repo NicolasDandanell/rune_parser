@@ -18,6 +18,5 @@ pub struct RedefineDefinition {
 #[derive(Debug, Clone)]
 pub enum DefineValue {
     NoValue,
-    NumericLiteral(NumericLiteral),
-    Composite(String)
+    NumericLiteral(NumericLiteral)
 }

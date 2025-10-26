@@ -85,28 +85,28 @@ impl FieldType {
             },
 
             FieldType::Char | FieldType::Byte => match value {
-                NumericLiteral::PositiveDecimal(decimal) => *decimal <= i8::MAX as u64,
-                NumericLiteral::NegativeDecimal(decimal) => FieldType::BYTE_RANGE.contains(decimal),
-                NumericLiteral::Hexadecimal(hexadecimal) => *hexadecimal <= i8::MAX as u64,
+                // Positives
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => *value <= i8::MAX as u64,
+                // Negatives
+                NumericLiteral::NegativeBinary(value) | NumericLiteral::NegativeDecimal(value) | NumericLiteral::NegativeHexadecimal(value) => FieldType::BYTE_RANGE.contains(value),
                 _ => false
             },
 
             FieldType::UByte => match value {
-                NumericLiteral::PositiveDecimal(decimal) => FieldType::UBYTE_RANGE.contains(decimal),
-                NumericLiteral::Hexadecimal(hexadecimal) => FieldType::UBYTE_RANGE.contains(&(hexadecimal)),
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => FieldType::UBYTE_RANGE.contains(value),
                 _ => false
             },
 
             // Two Bytes
             FieldType::Short => match value {
-                NumericLiteral::PositiveDecimal(decimal) => *decimal <= i16::MAX as u64,
-                NumericLiteral::NegativeDecimal(decimal) => FieldType::SHORT_RANGE.contains(decimal),
-                NumericLiteral::Hexadecimal(hexadecimal) => *hexadecimal <= i16::MAX as u64,
+                // Positives
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => *value <= i16::MAX as u64,
+                // Negatives
+                NumericLiteral::NegativeBinary(value) | NumericLiteral::NegativeDecimal(value) | NumericLiteral::NegativeHexadecimal(value) => FieldType::SHORT_RANGE.contains(value),
                 _ => false
             },
             FieldType::UShort => match value {
-                NumericLiteral::PositiveDecimal(decimal) => FieldType::USHORT_RANGE.contains(decimal),
-                NumericLiteral::Hexadecimal(hexadecimal) => FieldType::USHORT_RANGE.contains(&(hexadecimal)),
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => FieldType::USHORT_RANGE.contains(value),
                 _ => false
             },
 
@@ -116,14 +116,14 @@ impl FieldType {
                 _ => false
             },
             FieldType::Int => match value {
-                NumericLiteral::PositiveDecimal(decimal) => *decimal <= i32::MAX as u64,
-                NumericLiteral::NegativeDecimal(decimal) => FieldType::INT_RANGE.contains(decimal),
-                NumericLiteral::Hexadecimal(hexadecimal) => *hexadecimal <= i32::MAX as u64,
+                // Positives
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => *value <= i32::MAX as u64,
+                // Negatives
+                NumericLiteral::NegativeBinary(value) | NumericLiteral::NegativeDecimal(value) | NumericLiteral::NegativeHexadecimal(value) => FieldType::INT_RANGE.contains(value),
                 _ => false
             },
             FieldType::UInt => match value {
-                NumericLiteral::PositiveDecimal(decimal) => FieldType::UINT_RANGE.contains(decimal),
-                NumericLiteral::Hexadecimal(hexadecimal) => FieldType::UINT_RANGE.contains(&(hexadecimal)),
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => FieldType::UINT_RANGE.contains(value),
                 _ => false
             },
 
@@ -132,14 +132,16 @@ impl FieldType {
                 NumericLiteral::Float(_) => true,
                 _ => false
             },
+
             FieldType::Long => match value {
-                NumericLiteral::NegativeDecimal(_) => true,
-                NumericLiteral::PositiveDecimal(decimal) => *decimal < i64::MAX as u64,
-                NumericLiteral::Hexadecimal(hexadecimal) => *hexadecimal < i64::MAX as u64,
+                // Positives
+                NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => *value < i64::MAX as u64,
+                // Negatives
+                NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => true,
                 _ => false
             },
             FieldType::ULong => match value {
-                NumericLiteral::PositiveDecimal(_) | NumericLiteral::Hexadecimal(_) => true,
+                NumericLiteral::PositiveBinary(_) | NumericLiteral::PositiveDecimal(_) | NumericLiteral::PositiveHexadecimal(_) => true,
                 _ => false
             },
 
