@@ -6,7 +6,3 @@ name = "rune_parser"
 readme = "README.MD"
 repository = "https://github.com/NicolasDandanell/rune_parser"
 version = "0.4.1"
-
-[dependencies]
-comment-parser = "0.1.0"
-regex = "1.12.2"
