@@ -50,7 +50,7 @@ impl FieldType {
         }
     }
 
-    pub fn validate_bit_slot(&self, slot: &u64) -> bool {
+    pub fn validate_bit_index(&self, slot: &u64) -> bool {
         match self {
             FieldType::Char | FieldType::UByte | FieldType::Byte => *slot < 8,
             FieldType::UShort | FieldType::Short => *slot < 16,
@@ -219,32 +219,32 @@ pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RunePa
     // Check all files for struct definitions
     for file in files {
         for bitfield_definition in &file.definitions.bitfields {
-            let mut total_bit_size: u64 = 0;
+            let mut total_size: u64 = 0;
 
             for member in &bitfield_definition.members {
-                let field_slot: u64 = member.bit_slot;
+                let index: u64 = member.index;
                 let identifier: String = member.identifier.clone();
 
                 // Add bit size to total
-                total_bit_size += member.bit_size.absolute();
+                total_size += member.size.absolute();
 
                 // Check field index
                 // ——————————————————
 
-                let slot_count = bitfield_definition.members.iter().filter(|&member| member.bit_slot == field_slot).count();
+                let slot_count = bitfield_definition.members.iter().filter(|&member| member.index == index).count();
 
                 if slot_count > 1 {
                     error!(
                         "Error at {0}: Cannot have multiple fields with the same index! Found multiple instances of index: {1}",
-                        bitfield_definition.name, field_slot
+                        bitfield_definition.name, index
                     );
                     return Err(RuneParserError::IndexCollision);
                 }
 
-                if bitfield_definition.reserved_slots.contains(&field_slot) {
+                if bitfield_definition.reserved_indexes.contains(&index) {
                     error!(
                         "Error at {0}: Field {1} was declared with index {2} is declared even though field index {2} is reserved",
-                        bitfield_definition.name, identifier, field_slot
+                        bitfield_definition.name, identifier, index
                     );
                     return Err(RuneParserError::UseOfReservedIndex);
                 }
@@ -261,11 +261,11 @@ pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RunePa
             }
 
             // Check if bitfield members can fit within backing type
-            if !bitfield_definition.backing_type.validate_bitfield_size(&total_bit_size) {
+            if !bitfield_definition.backing_type.validate_bitfield_size(&total_size) {
                 error!(
                     "Error at {0}: Total size of members ({1} bytes) cannot fit within backing type {2}",
                     bitfield_definition.name,
-                    total_bit_size,
+                    total_size,
                     bitfield_definition.backing_type.to_string()
                 );
                 return Err(RuneParserError::InvalidTotalBitfieldSize);
@@ -342,7 +342,7 @@ pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RunePars
     for file in files {
         for struct_definition in &file.definitions.structs {
             // Check whether a verification field has been declared
-            let has_verifier: bool = match struct_definition.members.iter().filter(|&x| x.field_slot.is_verifier() == true).count() {
+            let has_verifier: bool = match struct_definition.members.iter().filter(|&x| x.index.is_verifier() == true).count() {
                 0 => false,
                 1 => true,
                 _ => {
@@ -353,16 +353,16 @@ pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RunePars
 
             // Check all identifiers for collisions
             for member in &struct_definition.members {
-                let field_slot: FieldSlot = member.field_slot.clone();
+                let index: FieldSlot = member.index.clone();
                 let identifier: String = member.identifier.clone();
 
                 // Check field index
                 // ——————————————————
 
-                let slot_count = struct_definition.members.iter().filter(|&member| member.field_slot.value() == field_slot.value()).count();
+                let slot_count = struct_definition.members.iter().filter(|&member| member.index.value() == index.value()).count();
 
                 if slot_count > 1 {
-                    if field_slot.value() == 0 && has_verifier {
+                    if index.value() == 0 && has_verifier {
                         error!(
                             "Error at {0}: Cannot have a verifier field and a field with index 0! This is due to verifier being an alias for index 0",
                             struct_definition.name
@@ -371,18 +371,18 @@ pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RunePars
                         error!(
                             "Error at {0}: Cannot have multiple fields with the same index! Found multiple instances of index: {1}",
                             struct_definition.name,
-                            field_slot.value()
+                            index.value()
                         );
                     }
                     return Err(RuneParserError::IndexCollision);
                 }
 
-                if struct_definition.reserved_slots.contains(&field_slot) {
+                if struct_definition.reserved_indexes.contains(&index) {
                     error!(
                         "Error at {0}: Field {1} was declared with index {2} is declared even though field index {2} is reserved",
                         struct_definition.name,
                         identifier,
-                        field_slot.value()
+                        index.value()
                     );
                     return Err(RuneParserError::UseOfReservedIndex);
                 }
