@@ -24,7 +24,7 @@ pub enum BitSize {
 }
 
 impl BitSize {
-    pub const BIT_SLOT_LIMIT: u64 = 64;
+    pub const LIMIT: u64 = 64;
 
     pub fn absolute(&self) -> u64 {
         match self {

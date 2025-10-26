@@ -3,7 +3,7 @@ use std::ops::Range;
 use crate::{
     output::is_silent,
     scanner::NumericLiteral,
-    types::{FieldSlot, FieldType},
+    types::{FieldIndex, FieldType},
     RuneFileDescription, RuneParserError
 };
 
@@ -50,12 +50,12 @@ impl FieldType {
         }
     }
 
-    pub fn validate_bit_index(&self, slot: &u64) -> bool {
+    pub fn validate_bit_index(&self, index: &u64) -> bool {
         match self {
-            FieldType::Char | FieldType::UByte | FieldType::Byte => *slot < 8,
-            FieldType::UShort | FieldType::Short => *slot < 16,
-            FieldType::UInt | FieldType::Int => *slot < 32,
-            FieldType::ULong | FieldType::Long => *slot < 64,
+            FieldType::Char | FieldType::UByte | FieldType::Byte => *index < 8,
+            FieldType::UShort | FieldType::Short => *index < 16,
+            FieldType::UInt | FieldType::Int => *index < 32,
+            FieldType::ULong | FieldType::Long => *index < 64,
 
             // All other types are invalid
             _ => false
@@ -231,9 +231,9 @@ pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RunePa
                 // Check field index
                 // ——————————————————
 
-                let slot_count = bitfield_definition.members.iter().filter(|&member| member.index == index).count();
+                let index_count = bitfield_definition.members.iter().filter(|&member| member.index == index).count();
 
-                if slot_count > 1 {
+                if index_count > 1 {
                     error!(
                         "Error at {0}: Cannot have multiple fields with the same index! Found multiple instances of index: {1}",
                         bitfield_definition.name, index
@@ -353,15 +353,15 @@ pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RunePars
 
             // Check all identifiers for collisions
             for member in &struct_definition.members {
-                let index: FieldSlot = member.index.clone();
+                let index: FieldIndex = member.index.clone();
                 let identifier: String = member.identifier.clone();
 
                 // Check field index
                 // ——————————————————
 
-                let slot_count = struct_definition.members.iter().filter(|&member| member.index.value() == index.value()).count();
+                let index_count = struct_definition.members.iter().filter(|&member| member.index.value() == index.value()).count();
 
-                if slot_count > 1 {
+                if index_count > 1 {
                     if index.value() == 0 && has_verifier {
                         error!(
                             "Error at {0}: Cannot have a verifier field and a field with index 0! This is due to verifier being an alias for index 0",

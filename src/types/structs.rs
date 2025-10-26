@@ -10,7 +10,7 @@ pub struct StructDefinition {
     /// Data fields of the struct
     pub members:          Vec<StructMember>,
     /// Indexes that are reserved, and should not be used
-    pub reserved_indexes: Vec<FieldSlot>,
+    pub reserved_indexes: Vec<FieldIndex>,
     /// Comment describing the struct
     pub comment:          Option<String>,
     /// Loose comments inside the bitfield declaration
@@ -24,7 +24,7 @@ pub struct StructMember {
     /// Type of the data field
     pub data_type:            FieldType,
     /// Index of the data field
-    pub index:                FieldSlot,
+    pub index:                FieldIndex,
     /// If the data type of the field is a user defined one, this will contain a copy of it's definition
     pub user_definition_link: UserDefinitionLink,
     /// Comment describing the data field
@@ -56,7 +56,7 @@ pub enum ArraySize {
 }
 
 #[derive(Debug, Clone)]
-pub enum FieldSlot {
+pub enum FieldIndex {
     /// Used for regular fields
     Numeric(u64),
 
@@ -64,26 +64,26 @@ pub enum FieldSlot {
     Verifier
 }
 
-impl FieldSlot {
-    pub const FIELD_SLOT_LIMIT: u64 = 32;
+impl FieldIndex {
+    pub const LIMIT: u64 = 32;
 
     pub fn value(&self) -> u64 {
         match self {
-            FieldSlot::Numeric(value) => *value,
-            FieldSlot::Verifier => 0
+            FieldIndex::Numeric(value) => *value,
+            FieldIndex::Verifier => 0
         }
     }
 
     pub fn is_verifier(&self) -> bool {
         match self {
-            FieldSlot::Verifier => true,
+            FieldIndex::Verifier => true,
             _ => false
         }
     }
 }
 
-impl PartialEq for FieldSlot {
-    fn eq(&self, other: &FieldSlot) -> bool {
+impl PartialEq for FieldIndex {
+    fn eq(&self, other: &FieldIndex) -> bool {
         self.value() == other.value()
     }
 }

@@ -12,7 +12,7 @@ pub use enums::{EnumDefinition, EnumMember};
 pub use extensions::{ExtensionDefinition, Extensions};
 pub use includes::IncludeDefinition;
 pub use standalone_comments::StandaloneCommentDefinition;
-pub use structs::{ArraySize, FieldSlot, FieldType, StructDefinition, StructMember, UserDefinitionLink};
+pub use structs::{ArraySize, FieldIndex, FieldType, StructDefinition, StructMember, UserDefinitionLink};
 
 /// Top Level Struct containing all message definitions in a compilation unit (file + includes)
 #[derive(Debug, Clone)]
