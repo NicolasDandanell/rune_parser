@@ -400,7 +400,7 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
             // Check all struct members
             for member in &mut struct_definition.members {
                 // Check if field type is array
-                match &mut member.field_type {
+                match &mut member.data_type {
                     FieldType::Array(_, array_size) => {
                         // Check if array size is a define value
                         match array_size {
@@ -462,7 +462,7 @@ pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) -> Resu
             // Check all struct members
             for member in &mut struct_definition.members {
                 // Check if struct member is user defined
-                match &member.field_type {
+                match &member.data_type {
                     FieldType::UserDefined(name) => {
                         member.user_definition_link = match find_definition(name, &immutable_reference) {
                             Err(error) => return Err(error),
@@ -508,7 +508,7 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
 
                 // Call recursively if struct found contains user defined members
                 for member in &mut definition_copy.members {
-                    match &member.field_type {
+                    match &member.data_type {
                         FieldType::UserDefined(name) => {
                             // Since we return a copy, we can easily modify the definition_copy without issue
                             member.user_definition_link = match find_definition(&name, definitions) {

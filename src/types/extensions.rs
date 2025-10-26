@@ -1,5 +1,6 @@
 use crate::types::{bitfields::BitfieldDefinition, enums::EnumDefinition, structs::StructDefinition};
 
+/// Helper holding all three possible extension types. Used only when parsing
 pub enum ExtensionDefinition {
     Bitfield(BitfieldDefinition),
     Enum(EnumDefinition),
@@ -8,8 +9,11 @@ pub enum ExtensionDefinition {
 
 #[derive(Debug, Clone)]
 pub struct Extensions {
+    /// List of bitfield extensions
     pub bitfields: Vec<BitfieldDefinition>,
+    /// List of enum extensions
     pub enums:     Vec<EnumDefinition>,
+    /// List of struct extensions
     pub structs:   Vec<StructDefinition>
 }
 

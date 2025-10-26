@@ -10,7 +10,7 @@ pub enum ParsingError {
     UnexpectedToken(ItemType),
     UnexpectedEndOfInput,
     ScanningError(ScanningError),
-    InvalidBitSlot(NumericLiteral),
+    InvalidBitIndex(NumericLiteral),
     InvalidIndex(NumericLiteral),
     InvalidBitfieldBackingType(FieldType),
     InvalidEnumBackingType(FieldType),
@@ -40,9 +40,9 @@ impl NumericLiteral {
             },
             NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => match value {
                 // Legal values
-                0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*value),
+                0..FieldIndex::LIMIT => Ok(*value),
                 // Higher than legal values
-                FieldSlot::FIELD_SLOT_LIMIT.. => {
+                FieldIndex::LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 }
@@ -61,9 +61,9 @@ impl NumericLiteral {
                     false => {
                         match *float as u64 {
                             // Legal values
-                            0..FieldSlot::FIELD_SLOT_LIMIT => Ok(*float as u64),
+                            0..FieldIndex::LIMIT => Ok(*float as u64),
                             // Higher than legal values
-                            FieldSlot::FIELD_SLOT_LIMIT.. => {
+                            FieldIndex::LIMIT.. => {
                                 error!("Field index cannot have a value higher than 31!");
                                 return Err(ParsingError::InvalidIndex(self.clone()));
                             }
@@ -78,7 +78,7 @@ impl NumericLiteral {
         }
     }
 
-    fn to_bit_slot(&self) -> Result<u64, ParsingError> {
+    fn to_bit_index(&self) -> Result<u64, ParsingError> {
         match self {
             NumericLiteral::Boolean(_) => {
                 error!("Boolean values are not valid as bitfield indexes");
@@ -86,9 +86,9 @@ impl NumericLiteral {
             },
             NumericLiteral::PositiveBinary(value) | NumericLiteral::PositiveDecimal(value) | NumericLiteral::PositiveHexadecimal(value) => match value {
                 // Legal values
-                0..BitSize::BIT_SLOT_LIMIT => Ok(*value),
+                0..BitSize::LIMIT => Ok(*value),
                 // Higher than legal values
-                BitSize::BIT_SLOT_LIMIT.. => {
+                BitSize::LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
                     return Err(ParsingError::InvalidIndex(self.clone()));
                 }
@@ -107,9 +107,9 @@ impl NumericLiteral {
                         },
                         false => match *float as u64 {
                             // Legal values
-                            0..BitSize::BIT_SLOT_LIMIT => Ok(*float as u64),
+                            0..BitSize::LIMIT => Ok(*float as u64),
                             // Higher than legal values
-                            BitSize::BIT_SLOT_LIMIT.. => {
+                            BitSize::LIMIT.. => {
                                 error!("Bitfield index cannot have a value higher than 63!");
                                 return Err(ParsingError::InvalidIndex(self.clone()));
                             }
@@ -119,7 +119,7 @@ impl NumericLiteral {
             },
             _ => {
                 error!("Bitfield indexes cannot have negative values!");
-                return Err(ParsingError::InvalidBitSlot(self.clone()));
+                return Err(ParsingError::InvalidBitIndex(self.clone()));
             }
         }
     }
@@ -354,7 +354,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
     tokens.expect_token(Token::LeftBrace)?;
     let mut members = Vec::new();
     let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
-    let mut reserved_slots: Vec<u64> = Vec::new();
+    let mut reserved_indexes: Vec<u64> = Vec::new();
 
     loop {
         // Get comment if any
@@ -387,12 +387,12 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
             for item in parse_reserved(tokens, false)? {
-                let slot = item.to_bit_slot()?;
-                match backing_type.validate_bit_slot(&slot) {
-                    true => reserved_slots.push(item.to_bit_slot()?),
+                let index = item.to_bit_index()?;
+                match backing_type.validate_bit_index(&index) {
+                    true => reserved_indexes.push(item.to_bit_index()?),
                     false => {
-                        error!("Reserved index {0} in bitfield {1} is not valid within backing type {2}", slot, name, backing_type.to_string());
-                        return Err(ParsingError::InvalidBitSlot(NumericLiteral::PositiveDecimal(slot as u64)));
+                        error!("Reserved index {0} in bitfield {1} is not valid within backing type {2}", index, name, backing_type.to_string());
+                        return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveDecimal(index as u64)));
                     }
                 }
 
@@ -413,27 +413,27 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
 
         // Bit size
         tokens.expect_token(Token::Colon)?;
-        let bit_size_token: Spanned<BitSize> = tokens.expect_bitfield_size()?;
-        let bit_size: BitSize = bit_size_token.item;
+        let size_token: Spanned<BitSize> = tokens.expect_bitfield_size()?;
+        let size: BitSize = size_token.item;
 
-        // Bit field slot
+        // Bit field index
         tokens.expect_token(Token::Equals)?;
-        let bit_slot_token = tokens.expect_next()?;
+        let bit_index_token = tokens.expect_next()?;
 
-        let bit_slot = match bit_slot_token.item {
-            Token::NumericLiteral(value) => value.to_bit_slot()?,
-            _ => return Err(ParsingError::UnexpectedToken(bit_slot_token))
+        let index = match bit_index_token.item {
+            Token::NumericLiteral(value) => value.to_bit_index()?,
+            _ => return Err(ParsingError::UnexpectedToken(bit_index_token))
         };
 
-        if !backing_type.validate_bit_slot(&bit_slot) {
-            error!("Index {0} in bitfield {1} is not valid within backing type {2}", bit_slot, name, backing_type.to_string());
-            return Err(ParsingError::InvalidBitSlot(NumericLiteral::PositiveDecimal(bit_slot as u64)));
+        if !backing_type.validate_bit_index(&index) {
+            error!("Index {0} in bitfield {1} is not valid within backing type {2}", index, name, backing_type.to_string());
+            return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveDecimal(index as u64)));
         };
 
         members.push(BitfieldMember {
             identifier,
-            bit_size,
-            bit_slot,
+            size,
+            index,
             comment: comment.map(|s| s.item)
         });
 
@@ -450,7 +450,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         name,
         backing_type,
         members,
-        reserved_slots,
+        reserved_indexes,
         comment,
         orphan_comments
     });
@@ -804,7 +804,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
 
     let mut members = Vec::new();
     let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
-    let mut reserved_slots: Vec<FieldSlot> = Vec::new();
+    let mut reserved_indexes: Vec<FieldIndex> = Vec::new();
 
     loop {
         let comment = tokens.maybe_expect_comment();
@@ -836,7 +836,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
         if peeked_token.item == Token::Reserve {
             // Push field index to reservation list if valid, throw error if not
             for item in parse_reserved(tokens, false)? {
-                reserved_slots.push(FieldSlot::Numeric(item.to_field_index()?));
+                reserved_indexes.push(FieldIndex::Numeric(item.to_field_index()?));
             }
 
             // If the next token is a right brace, then the definition has ended, so break and return
@@ -857,20 +857,20 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
 
         tokens.expect_token(Token::Equals)?;
 
-        let field_slot_token = tokens.expect_next()?;
-        let field_slot: FieldSlot = match &field_slot_token.item {
-            Token::Verifier => FieldSlot::Verifier,
+        let index_token = tokens.expect_next()?;
+        let index: FieldIndex = match &index_token.item {
+            Token::Verifier => FieldIndex::Verifier,
             Token::NumericLiteral(literal) => match literal.to_field_index() {
-                Err(_) => return Err(ParsingError::UnexpectedToken(field_slot_token)),
-                Ok(index) => FieldSlot::Numeric(index)
+                Err(_) => return Err(ParsingError::UnexpectedToken(index_token)),
+                Ok(index) => FieldIndex::Numeric(index)
             },
-            _ => return Err(ParsingError::UnexpectedToken(field_slot_token))
+            _ => return Err(ParsingError::UnexpectedToken(index_token))
         };
 
         members.push(StructMember {
             identifier: field_ident.item.clone(),
-            field_type: tk.item.clone(),
-            field_slot,
+            data_type: tk.item.clone(),
+            index,
             comment: comment.map(|s| s.item),
             user_definition_link: UserDefinitionLink::NoLink
         });
@@ -887,7 +887,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     Ok(StructDefinition {
         name: identifier.item,
         members,
-        reserved_slots,
+        reserved_indexes,
         orphan_comments,
         comment
     })

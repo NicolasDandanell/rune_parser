@@ -5,19 +5,29 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
-    pub name:            String,
-    pub members:         Vec<StructMember>,
-    pub reserved_slots:  Vec<FieldSlot>,
-    pub orphan_comments: Vec<StandaloneCommentDefinition>,
-    pub comment:         Option<String>
+    /// Name of the struct
+    pub name:             String,
+    /// Data fields of the struct
+    pub members:          Vec<StructMember>,
+    /// Indexes that are reserved, and should not be used
+    pub reserved_indexes: Vec<FieldIndex>,
+    /// Comment describing the struct
+    pub comment:          Option<String>,
+    /// Loose comments inside the bitfield declaration
+    pub orphan_comments:  Vec<StandaloneCommentDefinition>
 }
 
 #[derive(Debug, Clone)]
 pub struct StructMember {
+    /// Name of the data field
     pub identifier:           String,
-    pub field_type:           FieldType,
-    pub field_slot:           FieldSlot,
+    /// Type of the data field
+    pub data_type:            FieldType,
+    /// Index of the data field
+    pub index:                FieldIndex,
+    /// If the data type of the field is a user defined one, this will contain a copy of it's definition
     pub user_definition_link: UserDefinitionLink,
+    /// Comment describing the data field
     pub comment:              Option<String>
 }
 
@@ -33,15 +43,20 @@ pub enum UserDefinitionLink {
 }
 
 #[derive(Debug, Clone)]
+/// Size of an array, storing how the user described the value
 pub enum ArraySize {
+    /// Size described by a binary number
     Binary(u64),
+    /// Size described by a decimal number
     Decimal(u64),
+    /// Size described by a hexadecimal number
     Hexadecimal(u64),
+    /// Size described by value defined elsewhere by the user
     UserDefinition(DefineDefinition)
 }
 
 #[derive(Debug, Clone)]
-pub enum FieldSlot {
+pub enum FieldIndex {
     /// Used for regular fields
     Numeric(u64),
 
@@ -49,26 +64,26 @@ pub enum FieldSlot {
     Verifier
 }
 
-impl FieldSlot {
-    pub const FIELD_SLOT_LIMIT: u64 = 32;
+impl FieldIndex {
+    pub const LIMIT: u64 = 32;
 
     pub fn value(&self) -> u64 {
         match self {
-            FieldSlot::Numeric(value) => *value,
-            FieldSlot::Verifier => 0
+            FieldIndex::Numeric(value) => *value,
+            FieldIndex::Verifier => 0
         }
     }
 
     pub fn is_verifier(&self) -> bool {
         match self {
-            FieldSlot::Verifier => true,
+            FieldIndex::Verifier => true,
             _ => false
         }
     }
 }
 
-impl PartialEq for FieldSlot {
-    fn eq(&self, other: &FieldSlot) -> bool {
+impl PartialEq for FieldIndex {
+    fn eq(&self, other: &FieldIndex) -> bool {
         self.value() == other.value()
     }
 }
