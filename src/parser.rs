@@ -224,6 +224,14 @@ pub trait TokenSource: std::clone::Clone {
         }
     }
 
+    fn expect_numeric_literal(&mut self) -> ParsingResult<Spanned<NumericLiteral>> {
+        let token = self.expect_next()?;
+        match token.item {
+            Token::NumericLiteral(literal) => Ok(Spanned::new(literal, token.from, token.to)),
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
     fn expect_token(&mut self, expected_token: Token) -> ParsingResult<ItemType> {
         match self.expect_next()? {
             token if *token == expected_token => Ok(token),
@@ -675,7 +683,6 @@ fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result
     loop {
         let token = tokens.expect_next()?;
 
-        // Floating point ranges are simply not supported in enums currently due to complexity
         match &token.item {
             Token::NumericLiteral(value) => reserved_values.push(value.clone()),
             Token::NumericRange(start_value, end_value) => {
@@ -683,35 +690,25 @@ fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result
 
                 // Verify start
                 match start_value {
-                    // Positives
                     NumericLiteral::PositiveBinary(_) | NumericLiteral::PositiveDecimal(_) | NumericLiteral::PositiveHexadecimal(_) => (),
-
-                    // Negatives
-                    NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => match allow_negative {
-                        true => negatives = true,
-                        false => return Err(ParsingError::UnexpectedToken(token))
-                    },
-
+                    NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => negatives = true,
                     _ => return Err(ParsingError::UnexpectedToken(token))
                 };
 
                 // Verify end
                 match end_value {
-                    // Positives
                     NumericLiteral::PositiveBinary(_) | NumericLiteral::PositiveDecimal(_) | NumericLiteral::PositiveHexadecimal(_) => (),
-
-                    // Negatives
-                    NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => match allow_negative {
-                        true => {
-                            if !negatives {
-                                return Err(ParsingError::UnexpectedToken(token));
-                            }
-                        },
-                        false => return Err(ParsingError::UnexpectedToken(token))
+                    NumericLiteral::NegativeBinary(_) | NumericLiteral::NegativeDecimal(_) | NumericLiteral::NegativeHexadecimal(_) => {
+                        if !negatives {
+                            return Err(ParsingError::UnexpectedToken(token));
+                        }
                     },
-
                     _ => return Err(ParsingError::UnexpectedToken(token))
                 };
+
+                if negatives && !allow_negative {
+                    return Err(ParsingError::UnexpectedToken(token));
+                }
 
                 // Process range differently depending on if there are negatives
                 match negatives {

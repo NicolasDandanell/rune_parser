@@ -200,14 +200,15 @@ pub enum ScanningProduct {
 pub enum ScanningError {
     UnexpectedCharacter(Spanned<char>),
     InvalidLiteral(Spanned<()>),
+
     UnexpectedEndOfFile,
     UnexpectedEndOfFileWhileParsing { token_kind: &'static str, start_position: Position }
 }
 
 type ScanningResult = Result<ScanningProduct, ScanningError>;
 
-pub struct Scanner<I: Iterator<Item = char>> {
-    input:  I,
+pub struct Scanner<ScannerIterator: Iterator<Item = char>> {
+    input:  ScannerIterator,
     line:   u32,
     offset: u32,
     peeked: Option<char>
@@ -222,8 +223,8 @@ enum NumberType {
     Hexadecimal
 }
 
-impl<I: Iterator<Item = char>> Scanner<I> {
-    pub fn new(input: I) -> Self {
+impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
+    pub fn new(input: ScannerIterator) -> Self {
         Scanner {
             input,
             line: 1,
@@ -313,6 +314,101 @@ impl<I: Iterator<Item = char>> Scanner<I> {
         })
     }
 
+    pub fn extract_number(string: &String, from: Position, to: Position) -> Result<NumericLiteral, ScanningError> {
+        if string.is_empty() {
+            return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
+        }
+
+        // Get whether number is negative
+        let is_negative: bool = string.chars().nth(0).unwrap() == '-';
+
+        // Get number type
+        let number_type: NumberType = match string {
+            string if string.contains("0x") || string.contains("0X") => NumberType::Hexadecimal,
+            string if string.contains('.') => NumberType::Float,
+            string if string.contains("0b") || string.contains("0B") => NumberType::Binary,
+            _ => NumberType::Decimal
+        };
+
+        match number_type {
+            NumberType::Float => match string.parse::<f64>() {
+                Err(error) => {
+                    error!("Could not parse numeric value! Got error {0}", error);
+                    Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                },
+                Ok(value) => Ok(NumericLiteral::Float(value))
+            },
+            NumberType::Binary => {
+                let parsed_string = match string.strip_prefix("0b") {
+                    None => return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to))),
+                    Some(stripped) => String::from(stripped)
+                };
+
+                match is_negative {
+                    true => match i64::from_str_radix(&parsed_string, 2) {
+                        Err(error) => {
+                            error!("Could not parse numeric value! Got error {0}", error);
+                            Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                        },
+                        Ok(value) => Ok(NumericLiteral::NegativeBinary(value))
+                    },
+                    false => match u64::from_str_radix(&parsed_string, 2) {
+                        Err(error) => {
+                            error!("Could not parse numeric value! Got error {0}", error);
+                            Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                        },
+                        Ok(value) => Ok(NumericLiteral::PositiveBinary(value))
+                    }
+                }
+            },
+            NumberType::Decimal => match is_negative {
+                true => match i64::from_str_radix(&string, 10) {
+                    Err(error) => {
+                        error!("Could not parse numeric value! Got error {0}", error);
+                        Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                    },
+                    Ok(value) => Ok(NumericLiteral::NegativeDecimal(value))
+                },
+                false => match u64::from_str_radix(&string, 10) {
+                    Err(error) => {
+                        error!("Could not parse numeric value! Got error {0}", error);
+                        Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                    },
+                    Ok(value) => Ok(NumericLiteral::PositiveDecimal(value))
+                }
+            },
+            NumberType::Hexadecimal => {
+                let parsed_string = match string.strip_prefix("0x") {
+                    None => match string.strip_prefix("0X") {
+                        None => {
+                            error!("Could not parse numeric value! Got error {0}", error);
+                            return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
+                        },
+                        Some(stripped) => String::from(stripped)
+                    },
+                    Some(stripped) => String::from(stripped)
+                };
+
+                match is_negative {
+                    true => match i64::from_str_radix(&parsed_string, 16) {
+                        Err(error) => {
+                            error!("Could not parse numeric value! Got error {0}", error);
+                            Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                        },
+                        Ok(value) => Ok(NumericLiteral::NegativeHexadecimal(value))
+                    },
+                    false => match u64::from_str_radix(&parsed_string, 16) {
+                        Err(error) => {
+                            error!("Could not parse numeric value! Got error {0}", error);
+                            Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
+                        },
+                        Ok(value) => Ok(NumericLiteral::PositiveHexadecimal(value))
+                    }
+                }
+            }
+        }
+    }
+
     pub fn scan_numerics(&mut self) -> ScanningResult {
         let starting_from = self.position();
         let mut from = starting_from;
@@ -320,183 +416,35 @@ impl<I: Iterator<Item = char>> Scanner<I> {
 
         let mut text: String = String::new();
 
-        println!("Start scan numerics. First item is: {0}", self.peek().unwrap());
-
-        // Check for negative
-        let is_negative: bool = match self.peek() {
-            Some(character) => match character {
-                // Consume '-' if number is negative
-                '-' => {
-                    self.advance();
-                    true
-                },
-                _ => false
-            },
-            None => return Err(ScanningError::UnexpectedEndOfFile)
-        };
-
-        let mut number_type: NumberType = NumberType::Decimal;
-        let mut scientific_notation: bool = false;
-
-        // Seems like we have to handle ranges here...
-        let mut range_detected: bool = false;
-
         // Parse a whole number. Ranges should be handled elsewhere.
         while self.peek().is_some() {
             match self.peek().unwrap() {
-                // Binary number
-                'b' | 'B' if (text.len() == 1) && (number_type == NumberType::Decimal) => {
-                    number_type = NumberType::Binary;
-                    self.advance().unwrap();
-                },
-
-                // Floating point number or range start
-                '.' if number_type == NumberType::Decimal => {
-                    // Advance, as we need to see if this is a float or a range
-                    self.advance();
-
-                    match self.peek() {
-                        Some(character) => match character {
-                            // Is range
-                            '.' => {
-                                // Consume second '.'
-                                self.advance();
-                                range_detected = true;
-                                break;
-                            },
-
-                            // Not a range, but a float
-                            _ => {
-                                text.push('.');
-                                number_type = NumberType::Float;
-                            }
-                        },
-                        None => return Err(ScanningError::UnexpectedEndOfFile)
-                    }
-                },
-
-                '.' => {
-                    // Consume the '.'
-                    self.advance();
-                    if self.peek().is_some() {
-                        if self.peek().unwrap() == '.' {
-                            // Definitely a range here
-                            range_detected = true;
-                            // Consume second '.'
-                            self.advance();
-                            break;
-                        }
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    }
-                    return Err(ScanningError::UnexpectedEndOfFile);
-                },
-
-                // Scientific notation
-                'e' if (number_type == NumberType::Float) || (number_type == NumberType::Decimal) => {
-                    number_type = NumberType::Float;
-                    scientific_notation = true;
-                    text.push(self.advance().unwrap());
-                },
-                '-' if scientific_notation == true => {
-                    text.push(self.advance().unwrap());
-                },
-
-                // Hexadecimal numbers
-                'x' | 'X' if (text.len() == 1) && (number_type == NumberType::Decimal) => {
-                    number_type = NumberType::Hexadecimal;
-                    self.advance().unwrap();
-                },
-
-                // Rust style divider
-                '_' if number_type != NumberType::Float => {
-                    // Ignore divider
-                    self.advance().unwrap();
-                },
-
-                character if character.is_alphanumeric() => {
-                    text.push(self.advance().unwrap());
-                },
+                '-' | '_' | '.' | ' ' => text.push(self.advance().unwrap()),
+                character if character.is_alphanumeric() => text.push(self.advance().unwrap()),
 
                 // End of number
                 _ => break
             }
         }
 
-        let number_value: NumericLiteral = match is_negative {
-            true => match number_type {
-                NumberType::Binary => match i64::from_str_radix(&text, 2) {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+        // Check range
+        match text.contains("..") {
+            true => {
+                let strings: Vec<&str> = text.split("..").collect();
+                match strings.len() {
+                    2 => {
+                        let start: NumericLiteral = Self::extract_number(&String::from(strings[0].trim()), from, self.position())?;
+                        let end: NumericLiteral = Self::extract_number(&String::from(strings[1].trim()), from, self.position())?;
+                        Ok(ScanningProduct::Token(Spanned::new(Token::NumericRange(start, end), from, self.position())))
                     },
-                    Ok(value) => NumericLiteral::NegativeBinary(value * -1)
-                },
-                NumberType::Decimal => match i64::from_str_radix(&text, 10) {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => NumericLiteral::NegativeDecimal(value * -1)
-                },
-                NumberType::Hexadecimal => match i64::from_str_radix(&text, 16) {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => NumericLiteral::NegativeHexadecimal(value * -1)
-                },
-                NumberType::Float => match text.parse::<f64>() {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => NumericLiteral::Float(value * -1.0)
+                    _ => Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
                 }
             },
-            false => match number_type {
-                NumberType::Binary => match u64::from_str_radix(&text, 2) {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => NumericLiteral::PositiveBinary(value)
-                },
-                NumberType::Decimal => match u64::from_str_radix(&text, 10) {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => NumericLiteral::PositiveDecimal(value)
-                },
-                NumberType::Hexadecimal => match u64::from_str_radix(&text, 16) {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => NumericLiteral::PositiveHexadecimal(value)
-                },
-                NumberType::Float => match text.parse::<f64>() {
-                    Err(error) => {
-                        error!("Could not parse numeric value! Got error {0}", error);
-                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
-                    },
-                    Ok(value) => return Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(NumericLiteral::Float(value)), from, self.position())))
-                }
-            }
-        };
-
-        match range_detected {
-            false => Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(number_value), from, self.position()))),
-            true => {
-                let range_end: NumericLiteral = match self.scan_numerics()? {
-                    ScanningProduct::Finished | ScanningProduct::Skip => return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position()))),
-                    ScanningProduct::Token(token) => match token.item {
-                        Token::NumericLiteral(literal) => literal,
-                        _ => return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())))
-                    }
-                };
-                Ok(ScanningProduct::Token(Spanned::new(Token::NumericRange(number_value, range_end), from, self.position())))
-            }
+            false => Ok(ScanningProduct::Token(Spanned::new(
+                Token::NumericLiteral(Self::extract_number(&String::from(text.trim()), from, self.position())?),
+                from,
+                self.position()
+            )))
         }
     }
 

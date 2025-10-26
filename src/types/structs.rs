@@ -1,4 +1,7 @@
-use crate::types::{BitfieldDefinition, DefineDefinition, EnumDefinition, StandaloneCommentDefinition};
+use crate::{
+    scanner::NumericLiteral,
+    types::{BitfieldDefinition, DefineDefinition, DefineValue, EnumDefinition, StandaloneCommentDefinition}
+};
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
@@ -107,6 +110,30 @@ impl ArraySize {
             ArraySize::Decimal(value) => format!("{0}", value),
             ArraySize::Hexadecimal(value) => format!("0x{0:02X}", value),
             ArraySize::UserDefinition(value) => value.name.clone()
+        }
+    }
+
+    pub fn last_index_string(&self) -> String {
+        match self {
+            ArraySize::Binary(value) => format!("0b{0:b}", value - 1),
+            ArraySize::Decimal(value) => format!("{0}", value - 1),
+            ArraySize::Hexadecimal(value) => format!("0x{0:02X}", value - 1),
+            ArraySize::UserDefinition(definition) => {
+                let value = match &definition.redefinition {
+                    None => &definition.value,
+                    Some(redefinition) => &redefinition.value
+                };
+
+                match value {
+                    DefineValue::NoValue => format!("{0} - 1", definition.name),
+                    DefineValue::NumericLiteral(literal) => match literal {
+                        NumericLiteral::PositiveBinary(value) => format!("0b{0:b}", value - 1),
+                        NumericLiteral::PositiveDecimal(value) => format!("{0}", value - 1),
+                        NumericLiteral::PositiveHexadecimal(value) => format!("0x{0:02X}", value - 1),
+                        _ => unreachable!("Only positive integer numbers can be indexes")
+                    }
+                }
+            }
         }
     }
 }
