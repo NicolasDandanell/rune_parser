@@ -23,7 +23,7 @@ impl FieldType {
 
     pub fn can_back_bitfield(&self) -> bool {
         match self {
-            FieldType::Char | FieldType::UByte | FieldType::Byte | FieldType::UShort | FieldType::Short | FieldType::UInt | FieldType::Int | FieldType::ULong | FieldType::Long => true,
+            FieldType::Char | FieldType::I8 | FieldType::U8 | FieldType::I16 | FieldType::U16 | FieldType::I32 | FieldType::U32 | FieldType::I64 | FieldType::U64 => true,
 
             // All other types are invalid
             _ => false
@@ -32,18 +32,18 @@ impl FieldType {
 
     pub fn can_back_enum(&self) -> bool {
         match self {
-            FieldType::Boolean
+            FieldType::Bool
             | FieldType::Char
-            | FieldType::UByte
-            | FieldType::Byte
-            | FieldType::UShort
-            | FieldType::Short
-            | FieldType::Float
-            | FieldType::UInt
-            | FieldType::Int
-            | FieldType::Double
-            | FieldType::ULong
-            | FieldType::Long => true,
+            | FieldType::I8
+            | FieldType::U8
+            | FieldType::I16
+            | FieldType::U16
+            | FieldType::F32
+            | FieldType::I32
+            | FieldType::U32
+            | FieldType::F64
+            | FieldType::I64
+            | FieldType::U64 => true,
 
             // All other types are invalid
             _ => false
@@ -52,10 +52,10 @@ impl FieldType {
 
     pub fn validate_bit_index(&self, index: &u64) -> bool {
         match self {
-            FieldType::Char | FieldType::UByte | FieldType::Byte => *index < 8,
-            FieldType::UShort | FieldType::Short => *index < 16,
-            FieldType::UInt | FieldType::Int => *index < 32,
-            FieldType::ULong | FieldType::Long => *index < 64,
+            FieldType::Char | FieldType::I8 | FieldType::U8 => *index < 8,
+            FieldType::I16 | FieldType::U16 => *index < 16,
+            FieldType::I32 | FieldType::U32 => *index < 32,
+            FieldType::I64 | FieldType::U64 => *index < 64,
 
             // All other types are invalid
             _ => false
@@ -65,10 +65,10 @@ impl FieldType {
     /// Used to validate whether the total size of a bitfield can fit within its backing type
     pub fn validate_bitfield_size(&self, bitfield_size: &u64) -> bool {
         match self {
-            FieldType::Char | FieldType::UByte | FieldType::Byte => *bitfield_size <= 8,
-            FieldType::UShort | FieldType::Short => *bitfield_size <= 16,
-            FieldType::UInt | FieldType::Int => *bitfield_size <= 32,
-            FieldType::ULong | FieldType::Long => *bitfield_size <= 64,
+            FieldType::Char | FieldType::I8 | FieldType::U8 => *bitfield_size <= 8,
+            FieldType::I16 | FieldType::U16 => *bitfield_size <= 16,
+            FieldType::I32 | FieldType::U32 => *bitfield_size <= 32,
+            FieldType::I64 | FieldType::U64 => *bitfield_size <= 64,
 
             // All other types are invalid
             _ => false
@@ -79,66 +79,66 @@ impl FieldType {
     pub fn validate_value(&self, value: &NumericLiteral) -> bool {
         match self {
             // Single Byte
-            FieldType::Boolean => match value {
+            FieldType::Bool => match value {
                 NumericLiteral::Boolean(_) => true,
                 _ => false
             },
 
-            FieldType::Char | FieldType::Byte => match value {
+            FieldType::Char | FieldType::I8 => match value {
                 NumericLiteral::PositiveInteger(value, _) => *value <= i8::MAX as u64,
                 NumericLiteral::NegativeInteger(value, _) => FieldType::BYTE_RANGE.contains(value),
                 _ => false
             },
 
-            FieldType::UByte => match value {
+            FieldType::U8 => match value {
                 NumericLiteral::PositiveInteger(value, _) => FieldType::UBYTE_RANGE.contains(value),
                 _ => false
             },
 
             // Two Bytes
-            FieldType::Short => match value {
+            FieldType::I16 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value <= i16::MAX as u64,
                 // Negatives
                 NumericLiteral::NegativeInteger(value, _) => FieldType::SHORT_RANGE.contains(value),
                 _ => false
             },
-            FieldType::UShort => match value {
+            FieldType::U16 => match value {
                 NumericLiteral::PositiveInteger(value, _) => FieldType::USHORT_RANGE.contains(value),
                 _ => false
             },
 
             // Four Bytes
-            FieldType::Float => match value {
+            FieldType::F32 => match value {
                 NumericLiteral::Float(float) => FieldType::FLOAT_RANGE.contains(float),
                 _ => false
             },
-            FieldType::Int => match value {
+            FieldType::I32 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value <= i32::MAX as u64,
                 // Negatives
                 NumericLiteral::NegativeInteger(value, _) => FieldType::INT_RANGE.contains(value),
                 _ => false
             },
-            FieldType::UInt => match value {
+            FieldType::U32 => match value {
                 NumericLiteral::PositiveInteger(value, _) => FieldType::UINT_RANGE.contains(value),
                 _ => false
             },
 
             // Eight Bytes - Make assumptions, as if the value would not fit, we would not even be able to parse it into the program...
-            FieldType::Double => match value {
+            FieldType::F64 => match value {
                 NumericLiteral::Float(_) => true,
                 _ => false
             },
 
-            FieldType::Long => match value {
+            FieldType::I64 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value < i64::MAX as u64,
                 // Negatives
                 NumericLiteral::NegativeInteger(_, _) => true,
                 _ => false
             },
-            FieldType::ULong => match value {
+            FieldType::U64 => match value {
                 NumericLiteral::PositiveInteger(_, _) => true,
                 _ => false
             },

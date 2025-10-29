@@ -90,24 +90,28 @@ pub enum FieldType {
     Empty,
 
     // 1 byte primitives
-    Boolean,
+    Bool,
     Char,
-    UByte,
-    Byte,
+    I8,
+    U8,
 
     // 2 byte primitives
-    UShort,
-    Short,
+    I16,
+    U16,
 
     // 4 byte primitives
-    Float,
-    UInt,
-    Int,
+    F32,
+    I32,
+    U32,
 
     // 8 byte primitives
-    Double,
-    ULong,
-    Long,
+    F64,
+    I64,
+    U64,
+
+    // 16 byte primitives (Not sendable)
+    I128,
+    U128,
 
     // Arrays and user definitions
     Array(Box<FieldType>, ArraySize),
@@ -176,18 +180,20 @@ impl FieldType {
     pub fn to_string(&self) -> String {
         match self {
             FieldType::Empty => String::from("(empty)"),
-            FieldType::Boolean => String::from("bool"),
+            FieldType::Bool => String::from("bool"),
             FieldType::Char => String::from("char"),
-            FieldType::UByte => String::from("u8"),
-            FieldType::Byte => String::from("i8"),
-            FieldType::UShort => String::from("u16"),
-            FieldType::Short => String::from("i16"),
-            FieldType::Float => String::from("float"),
-            FieldType::UInt => String::from("u32"),
-            FieldType::Int => String::from("i32"),
-            FieldType::Double => String::from("double"),
-            FieldType::ULong => String::from("u64"),
-            FieldType::Long => String::from("i64"),
+            FieldType::I8 => String::from("i8"),
+            FieldType::U8 => String::from("u8"),
+            FieldType::I16 => String::from("i16"),
+            FieldType::U16 => String::from("u16"),
+            FieldType::F32 => String::from("float"),
+            FieldType::I32 => String::from("i32"),
+            FieldType::U32 => String::from("u32"),
+            FieldType::F64 => String::from("double"),
+            FieldType::I64 => String::from("i64"),
+            FieldType::U64 => String::from("u64"),
+            FieldType::I128 => String::from("i128"),
+            FieldType::U128 => String::from("u128"),
             FieldType::Array(array_type, array_size) => format!("[{0}; {1}]", array_type.to_string(), array_size.to_string()),
             FieldType::UserDefined(string) => string.clone()
         }
@@ -195,7 +201,7 @@ impl FieldType {
 
     pub fn is_signed(&self) -> bool {
         match self {
-            FieldType::Int | FieldType::Char | FieldType::Byte | FieldType::Long | FieldType::Short | FieldType::Float | FieldType::Double => true,
+            FieldType::Char | FieldType::I8 | FieldType::I16 | FieldType::F32 | FieldType::I32 | FieldType::F64 | FieldType::I64 => true,
             _ => false
         }
     }
@@ -209,8 +215,8 @@ impl PartialEq for FieldType {
                 _ => return false
             },
 
-            FieldType::Boolean => match other {
-                FieldType::Boolean => return true,
+            FieldType::Bool => match other {
+                FieldType::Bool => return true,
                 _ => return false
             },
 
@@ -219,53 +225,63 @@ impl PartialEq for FieldType {
                 _ => return false
             },
 
-            FieldType::UByte => match other {
-                FieldType::UByte => return true,
+            FieldType::I8 => match other {
+                FieldType::I8 => return true,
                 _ => return false
             },
 
-            FieldType::Byte => match other {
-                FieldType::Byte => return true,
+            FieldType::U8 => match other {
+                FieldType::U8 => return true,
                 _ => return false
             },
 
-            FieldType::UShort => match other {
-                FieldType::UShort => return true,
+            FieldType::I16 => match other {
+                FieldType::I16 => return true,
                 _ => return false
             },
 
-            FieldType::Short => match other {
-                FieldType::Short => return true,
+            FieldType::U16 => match other {
+                FieldType::U16 => return true,
                 _ => return false
             },
 
-            FieldType::Float => match other {
-                FieldType::Float => return true,
+            FieldType::F32 => match other {
+                FieldType::F32 => return true,
                 _ => return false
             },
 
-            FieldType::UInt => match other {
-                FieldType::UInt => return true,
+            FieldType::I32 => match other {
+                FieldType::I32 => return true,
                 _ => return false
             },
 
-            FieldType::Int => match other {
-                FieldType::Int => return true,
+            FieldType::U32 => match other {
+                FieldType::U32 => return true,
                 _ => return false
             },
 
-            FieldType::Double => match other {
-                FieldType::Double => return true,
+            FieldType::F64 => match other {
+                FieldType::F64 => return true,
                 _ => return false
             },
 
-            FieldType::ULong => match other {
-                FieldType::ULong => return true,
+            FieldType::I64 => match other {
+                FieldType::I64 => return true,
                 _ => return false
             },
 
-            FieldType::Long => match other {
-                FieldType::Long => return true,
+            FieldType::U64 => match other {
+                FieldType::U64 => return true,
+                _ => return false
+            },
+
+            FieldType::I128 => match other {
+                FieldType::I128 => return true,
+                _ => return false
+            },
+
+            FieldType::U128 => match other {
+                FieldType::U128 => return true,
                 _ => return false
             },
 
