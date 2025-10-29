@@ -1,5 +1,5 @@
 use crate::{
-    scanner::NumericLiteral,
+    scanner::{NumeralSystem, NumericLiteral},
     types::{BitfieldDefinition, DefineDefinition, DefineValue, EnumDefinition, StandaloneCommentDefinition}
 };
 
@@ -45,12 +45,8 @@ pub enum UserDefinitionLink {
 #[derive(Debug, Clone)]
 /// Size of an array, storing how the user described the value
 pub enum ArraySize {
-    /// Size described by a binary number
-    Binary(u64),
-    /// Size described by a decimal number
-    Decimal(u64),
-    /// Size described by a hexadecimal number
-    Hexadecimal(u64),
+    /// Size described by a integer number. Can be written in several numeric systems
+    Integer(u64, NumeralSystem),
     /// Size described by value defined elsewhere by the user
     UserDefinition(DefineDefinition)
 }
@@ -121,18 +117,23 @@ pub enum FieldType {
 impl ArraySize {
     pub fn to_string(&self) -> String {
         match self {
-            ArraySize::Binary(value) => format!("0b{0:b}", value),
-            ArraySize::Decimal(value) => format!("{0}", value),
-            ArraySize::Hexadecimal(value) => format!("0x{0:02X}", value),
+            ArraySize::Integer(value, numeral_system) => match numeral_system {
+                NumeralSystem::Binary => format!("0b{0:b}", value),
+                NumeralSystem::Decimal => value.to_string(),
+                NumeralSystem::Hexadecimal => format!("0x{0:02X}", value)
+            },
+
             ArraySize::UserDefinition(value) => value.name.clone()
         }
     }
 
     pub fn last_index_string(&self) -> String {
         match self {
-            ArraySize::Binary(value) => format!("0b{0:b}", value - 1),
-            ArraySize::Decimal(value) => format!("{0}", value - 1),
-            ArraySize::Hexadecimal(value) => format!("0x{0:02X}", value - 1),
+            ArraySize::Integer(value, numeral_system) => match numeral_system {
+                NumeralSystem::Binary => format!("0b{0:b}", value - 1),
+                NumeralSystem::Decimal => (value - 1).to_string(),
+                NumeralSystem::Hexadecimal => format!("0x{0:02X}", value - 1)
+            },
             ArraySize::UserDefinition(definition) => {
                 let value = match &definition.redefinition {
                     None => &definition.value,
@@ -142,9 +143,12 @@ impl ArraySize {
                 match value {
                     DefineValue::NoValue => format!("{0} - 1", definition.name),
                     DefineValue::NumericLiteral(literal) => match literal {
-                        NumericLiteral::PositiveBinary(value) => format!("0b{0:b}", value - 1),
-                        NumericLiteral::PositiveDecimal(value) => format!("{0}", value - 1),
-                        NumericLiteral::PositiveHexadecimal(value) => format!("0x{0:02X}", value - 1),
+                        NumericLiteral::PositiveInteger(value, numeral_system) => match numeral_system {
+                            NumeralSystem::Binary => format!("0b{0:b}", value - 1),
+                            NumeralSystem::Decimal => format!("{0}", value - 1),
+                            NumeralSystem::Hexadecimal => format!("0x{0:02X}", value - 1)
+                        },
+
                         _ => unreachable!("Only positive integer numbers can be indexes")
                     }
                 }
@@ -156,8 +160,8 @@ impl ArraySize {
 impl PartialEq for ArraySize {
     fn eq(&self, other: &ArraySize) -> bool {
         match self {
-            ArraySize::Binary(value) | ArraySize::Decimal(value) | ArraySize::Hexadecimal(value) => match other {
-                ArraySize::Binary(other_value) | ArraySize::Decimal(other_value) | ArraySize::Hexadecimal(other_value) => return value == other_value,
+            ArraySize::Integer(value, _) => match other {
+                ArraySize::Integer(other_value, _) => return value == other_value,
                 _ => false
             },
             ArraySize::UserDefinition(definition) => match other {
