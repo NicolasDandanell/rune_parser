@@ -261,10 +261,10 @@ pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RunePa
             // Check if bitfield members can fit within backing type
             if !bitfield_definition.backing_type.validate_bitfield_size(&total_size) {
                 error!(
-                    "Error at {0}: Total size of members ({1} bytes) cannot fit within backing type {2}",
+                    "Error at {0}: Total size of members ({1} bytes) cannot fit within backing type {2:?}",
                     bitfield_definition.name,
                     total_size,
-                    bitfield_definition.backing_type.to_string()
+                    bitfield_definition.backing_type
                 );
                 return Err(RuneParserError::InvalidTotalBitfieldSize);
             }

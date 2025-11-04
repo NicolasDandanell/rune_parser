@@ -74,10 +74,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     // Check that backing types match
                     if bitfield_extensions[i].definition.backing_type != bitfield_extensions[z].definition.backing_type {
                         error!(
-                            "Two extensions of {0} have mismatching backing types {1} and {2}",
+                            "Two extensions of {0} have mismatching backing types {1:?} and {2:?}",
                             bitfield_extensions[i].definition.name,
-                            bitfield_extensions[i].definition.backing_type.to_string(),
-                            bitfield_extensions[z].definition.backing_type.to_string()
+                            bitfield_extensions[i].definition.backing_type,
+                            bitfield_extensions[z].definition.backing_type
                         );
                         return Err(RuneParserError::ExtensionMismatch);
                     }
@@ -125,10 +125,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     // Check that backing types match
                     if enum_extensions[i].definition.backing_type != enum_extensions[z].definition.backing_type {
                         error!(
-                            "Two extensions of {0} have mismatching backing types {1} and {2}",
+                            "Two extensions of {0} have mismatching backing types {1:?} and {2:?}",
                             enum_extensions[i].definition.name,
-                            enum_extensions[i].definition.backing_type.to_string(),
-                            enum_extensions[z].definition.backing_type.to_string()
+                            enum_extensions[i].definition.backing_type,
+                            enum_extensions[z].definition.backing_type
                         );
                         return Err(RuneParserError::ExtensionMismatch);
                     }
@@ -218,10 +218,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         // Check that backing types match
                         if bitfield_definition.backing_type != extension.definition.backing_type {
                             error!(
-                                "Extension to {0} has wrong backing type {1} instead of original type {2}",
+                                "Extension to {0} has wrong backing type {1:?} instead of original type {2:?}",
                                 bitfield_definition.name,
-                                extension.definition.backing_type.to_string(),
-                                bitfield_definition.backing_type.to_string()
+                                extension.definition.backing_type,
+                                bitfield_definition.backing_type
                             );
                             return Err(RuneParserError::ExtensionMismatch);
                         }
@@ -262,10 +262,10 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                         // Check that backing types match
                         if enum_definition.backing_type != extension.definition.backing_type {
                             error!(
-                                "Extension to {0} has wrong backing type {1} instead of original type {2}",
+                                "Extension to {0} has wrong backing type {1:?} instead of original type {2:?}",
                                 enum_definition.name,
-                                extension.definition.backing_type.to_string(),
-                                enum_definition.backing_type.to_string()
+                                extension.definition.backing_type,
+                                enum_definition.backing_type
                             );
                             return Err(RuneParserError::ExtensionMismatch);
                         }

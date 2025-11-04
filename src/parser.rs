@@ -352,7 +352,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
 
     // Validate backing type
     if !backing_type.can_back_bitfield() {
-        error!("{0} is not a valid backing type for a bitfield!", backing_type.to_string());
+        error!("{0:?} is not a valid backing type for a bitfield!", backing_type);
         return Err(ParsingError::InvalidBitfieldBackingType(backing_type));
     }
 
@@ -397,7 +397,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
                 match backing_type.validate_bit_index(&index) {
                     true => reserved_indexes.push(item.to_bit_index()?),
                     false => {
-                        error!("Reserved index {0} in bitfield {1} is not valid within backing type {2}", index, name, backing_type.to_string());
+                        error!("Reserved index {0} in bitfield {1} is not valid within backing type {2:?}", index, name, backing_type);
                         return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveInteger(index as u64, NumeralSystem::Decimal)));
                     }
                 }
@@ -432,7 +432,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         };
 
         if !backing_type.validate_bit_index(&index) {
-            error!("Index {0} in bitfield {1} is not valid within backing type {2}", index, name, backing_type.to_string());
+            error!("Index {0} in bitfield {1} is not valid within backing type {2:?}", index, name, backing_type);
             return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveInteger(index as u64, NumeralSystem::Decimal)));
         };
 
@@ -515,7 +515,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
 
     // Validate backing type
     if !backing_type.can_back_enum() {
-        error!("{0} is not a valid backing type for an enum!", backing_type.to_string());
+        error!("{0:?} is not a valid backing type for an enum!", backing_type);
         return Err(ParsingError::InvalidEnumBackingType(backing_type));
     }
 
@@ -559,10 +559,10 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
                     true => reserved_values.push(item),
                     false => {
                         error!(
-                            "Reserved enum value {0} in enum {1} does not conform within backing type {2}",
+                            "Reserved enum value {0} in enum {1} does not conform within backing type {2:?}",
                             item.to_string(),
                             name,
-                            backing_type.to_string()
+                            backing_type
                         );
                         return Err(ParsingError::InvalidEnumValue(item));
                     }
@@ -592,7 +592,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
 
         // Validate value against backing type
         if !backing_type.validate_value(&value) {
-            error!("Value {0} in enum {1} does not conform within backing type {2}", value.to_string(), name, backing_type.to_string());
+            error!("Value {0} in enum {1} does not conform within backing type {2:?}", value.to_string(), name, backing_type);
             return Err(ParsingError::InvalidEnumValue(value));
         }
 
