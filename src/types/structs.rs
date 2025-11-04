@@ -3,6 +3,8 @@ use crate::{
     types::{BitfieldDefinition, DefineDefinition, DefineValue, EnumDefinition, StandaloneCommentDefinition}
 };
 
+use std::fmt::{ Debug, Formatter, Result };
+
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
     /// Name of the struct
@@ -84,7 +86,7 @@ impl PartialEq for FieldIndex {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum FieldType {
     /// Used for skipped fields
     Empty,
@@ -176,29 +178,31 @@ impl PartialEq for ArraySize {
     }
 }
 
-impl FieldType {
-    pub fn to_string(&self) -> String {
+impl Debug for FieldType {
+    fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
-            FieldType::Empty => String::from("(empty)"),
-            FieldType::Bool => String::from("bool"),
-            FieldType::Char => String::from("char"),
-            FieldType::I8 => String::from("i8"),
-            FieldType::U8 => String::from("u8"),
-            FieldType::I16 => String::from("i16"),
-            FieldType::U16 => String::from("u16"),
-            FieldType::F32 => String::from("float"),
-            FieldType::I32 => String::from("i32"),
-            FieldType::U32 => String::from("u32"),
-            FieldType::F64 => String::from("double"),
-            FieldType::I64 => String::from("i64"),
-            FieldType::U64 => String::from("u64"),
-            FieldType::I128 => String::from("i128"),
-            FieldType::U128 => String::from("u128"),
-            FieldType::Array(array_type, array_size) => format!("[{0}; {1}]", array_type.to_string(), array_size.to_string()),
-            FieldType::UserDefined(string) => string.clone()
+            FieldType::Empty => write!(formatter, "(empty)"),
+            FieldType::Bool => write!(formatter, "bool"),
+            FieldType::Char => write!(formatter, "char"),
+            FieldType::I8 => write!(formatter, "i8"),
+            FieldType::U8 => write!(formatter, "u8"),
+            FieldType::I16 => write!(formatter, "i16"),
+            FieldType::U16 => write!(formatter, "u16"),
+            FieldType::F32 => write!(formatter, "f32"),
+            FieldType::I32 => write!(formatter, "i32"),
+            FieldType::U32 => write!(formatter, "u32"),
+            FieldType::F64 => write!(formatter, "f64"),
+            FieldType::I64 => write!(formatter, "i64"),
+            FieldType::U64 => write!(formatter, "u64"),
+            FieldType::I128 => write!(formatter, "i128"),
+            FieldType::U128 => write!(formatter, "u128"),
+            FieldType::Array(array_type, array_size) => write!(formatter, "[{0:?}; {1}]", array_type, array_size.to_string()),
+            FieldType::UserDefined(string) => write!(formatter, "{0}", string.clone())
         }
     }
+}
 
+impl FieldType {
     pub fn is_signed(&self) -> bool {
         match self {
             FieldType::Char | FieldType::I8 | FieldType::I16 | FieldType::F32 | FieldType::I32 | FieldType::F64 | FieldType::I64 => true,

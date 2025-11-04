@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::output::*;
+use crate::{output::*, types::FieldType};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -93,6 +93,17 @@ pub enum NumericLiteral {
     PositiveInteger(u64, NumeralSystem),
     NegativeInteger(i64, NumeralSystem),
     Float(f64)
+}
+
+impl NumericLiteral {
+    pub fn containing_type(&self) -> FieldType {
+        match self {
+            NumericLiteral::Boolean(_) => FieldType::Bool,
+            NumericLiteral::PositiveInteger(_, _) => FieldType::U64,
+            NumericLiteral::NegativeInteger(_, _) => FieldType::I64,
+            NumericLiteral::Float(_) => FieldType::F64
+        }
+    }
 }
 
 impl PartialEq for NumericLiteral {
