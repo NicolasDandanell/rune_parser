@@ -20,7 +20,7 @@ const ALLOCATION_SIZE: usize = 0x40;
 #[derive(Debug, Clone)]
 pub struct RuneFileDescription {
     pub relative_path: String,
-    pub file_name:     String,
+    pub name:          String,
     pub definitions:   Definitions
 }
 
@@ -62,12 +62,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
     // ———————————————————————————
 
     // Create a vector with allocated space for 64 rune files, which should be more than plenty for most projects
-    let mut rune_file_list: Vec<String> = Vec::with_capacity(ALLOCATION_SIZE);
-
-    match get_rune_files(input_path, &mut rune_file_list) {
-        Err(error) => return Err(error),
-        Ok(_) => ()
-    }
+    let rune_file_list: Vec<String> = get_rune_files(input_path)?;
 
     if rune_file_list.is_empty() {
         warning!("Could not parse any rune files from folder. Returning empty list");
@@ -76,8 +71,8 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
 
     // Print all found files
     info!("\nFound the following rune files:");
-    for i in 0..rune_file_list.len() {
-        info!("    {0}", rune_file_list[i]);
+    for file in &rune_file_list {
+        info!("    {0}", file);
     }
 
     // Process rune files
@@ -106,7 +101,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
         };
 
         // Parse all scanned tokens
-        let types: Definitions = match parse_tokens(&mut tokens.into_iter().peekable()) {
+        let definitions: Definitions = match parse_tokens(&mut tokens.into_iter().peekable()) {
             Err(error) => {
                 error!("Error while parsing file {0}: {1:#?}", filepath, error);
                 continue;
@@ -129,7 +124,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
             }
         };
 
-        let file_name: String = match full_file_name.strip_suffix(".rune") {
+        let name: String = match full_file_name.strip_suffix(".rune") {
             None => {
                 error!("Could not strip '.rune' suffix from file name!");
                 continue;
@@ -166,11 +161,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
             }
         };
 
-        definitions_list.push(RuneFileDescription {
-            relative_path: relative_path,
-            file_name:     file_name,
-            definitions:   types
-        });
+        definitions_list.push(RuneFileDescription { relative_path, name, definitions });
     }
 
     // Post-processing
@@ -196,7 +187,9 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
     Ok(definitions_list)
 }
 
-fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) -> Result<(), RuneParserError> {
+fn get_rune_files(folder_path: &Path) -> Result<Vec<String>, RuneParserError> {
+    let mut rune_file_list: Vec<String> = Vec::with_capacity(ALLOCATION_SIZE);
+
     let folder_iterator: ReadDir = match folder_path.read_dir() {
         Err(error) => {
             error!(
@@ -263,10 +256,9 @@ fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) -> R
             let subfolder_path: &Path = Path::new(&subfolder_string);
 
             // Recursively call function to parse files in subfolder
-            match get_rune_files(subfolder_path, &mut rune_file_list) {
-                Err(error) => return Err(error),
-                Ok(_) => ()
-            }
+            let mut subfolder_list: Vec<String> = get_rune_files(subfolder_path)?;
+
+            rune_file_list.append(&mut subfolder_list);
         } else if entry_type.is_file() {
             // Rune file
             // ——————————
@@ -297,5 +289,5 @@ fn get_rune_files(folder_path: &Path, mut rune_file_list: &mut Vec<String>) -> R
         }
     }
 
-    return Ok(());
+    Ok(rune_file_list)
 }

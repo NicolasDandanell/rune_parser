@@ -1,9 +1,6 @@
-use crate::{
-    scanner::{NumeralSystem, NumericLiteral},
-    types::{BitfieldDefinition, DefineDefinition, DefineValue, EnumDefinition, StandaloneCommentDefinition}
-};
+use std::fmt::{Debug, Formatter, Result};
 
-use std::fmt::{ Debug, Formatter, Result };
+use crate::types::{ArraySize, ArrayType, BitfieldDefinition, EnumDefinition, StandaloneCommentDefinition};
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
@@ -45,15 +42,6 @@ pub enum UserDefinitionLink {
 }
 
 #[derive(Debug, Clone)]
-/// Size of an array, storing how the user described the value
-pub enum ArraySize {
-    /// Size described by a integer number. Can be written in several numeric systems
-    Integer(u64, NumeralSystem),
-    /// Size described by value defined elsewhere by the user
-    UserDefinition(DefineDefinition)
-}
-
-#[derive(Debug, Clone)]
 pub enum FieldIndex {
     /// Used for regular fields
     Numeric(u64),
@@ -73,10 +61,7 @@ impl FieldIndex {
     }
 
     pub fn is_verifier(&self) -> bool {
-        match self {
-            FieldIndex::Verifier => true,
-            _ => false
-        }
+        matches!(self, FieldIndex::Verifier)
     }
 }
 
@@ -86,11 +71,8 @@ impl PartialEq for FieldIndex {
     }
 }
 
-#[derive(Clone)]
-pub enum FieldType {
-    /// Used for skipped fields
-    Empty,
-
+#[derive(Clone, Debug, PartialEq)]
+pub enum Primitive {
     // 1 byte primitives
     Bool,
     Char,
@@ -111,191 +93,72 @@ pub enum FieldType {
     I64,
     U64,
 
-    // 16 byte primitives (Not sendable)
+    // 16 byte primitives (Not sendable as primitive)
     I128,
-    U128,
+    U128
+}
 
-    // Arrays and user definitions
-    Array(Box<FieldType>, ArraySize),
+#[derive(Clone)]
+pub enum FieldType {
+    /// Used for skipped fields
+    Empty,
+    Primitive(Primitive),
+    Array(ArrayType, ArraySize),
     UserDefined(String)
-}
-
-impl ArraySize {
-    pub fn to_string(&self) -> String {
-        match self {
-            ArraySize::Integer(value, numeral_system) => match numeral_system {
-                NumeralSystem::Binary => format!("0b{0:b}", value),
-                NumeralSystem::Decimal => value.to_string(),
-                NumeralSystem::Hexadecimal => format!("0x{0:02X}", value)
-            },
-
-            ArraySize::UserDefinition(value) => value.name.clone()
-        }
-    }
-
-    pub fn last_index_string(&self) -> String {
-        match self {
-            ArraySize::Integer(value, numeral_system) => match numeral_system {
-                NumeralSystem::Binary => format!("0b{0:b}", value - 1),
-                NumeralSystem::Decimal => (value - 1).to_string(),
-                NumeralSystem::Hexadecimal => format!("0x{0:02X}", value - 1)
-            },
-            ArraySize::UserDefinition(definition) => {
-                let value = match &definition.redefinition {
-                    None => &definition.value,
-                    Some(redefinition) => &redefinition.value
-                };
-
-                match value {
-                    DefineValue::NoValue => format!("{0} - 1", definition.name),
-                    DefineValue::NumericLiteral(literal) => match literal {
-                        NumericLiteral::PositiveInteger(value, numeral_system) => match numeral_system {
-                            NumeralSystem::Binary => format!("0b{0:b}", value - 1),
-                            NumeralSystem::Decimal => format!("{0}", value - 1),
-                            NumeralSystem::Hexadecimal => format!("0x{0:02X}", value - 1)
-                        },
-
-                        _ => unreachable!("Only positive integer numbers can be indexes")
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl PartialEq for ArraySize {
-    fn eq(&self, other: &ArraySize) -> bool {
-        match self {
-            ArraySize::Integer(value, _) => match other {
-                ArraySize::Integer(other_value, _) => return value == other_value,
-                _ => false
-            },
-            ArraySize::UserDefinition(definition) => match other {
-                ArraySize::UserDefinition(other_definition) => return definition.name == other_definition.name,
-                _ => return false
-            }
-        }
-    }
 }
 
 impl Debug for FieldType {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
             FieldType::Empty => write!(formatter, "(empty)"),
-            FieldType::Bool => write!(formatter, "bool"),
-            FieldType::Char => write!(formatter, "char"),
-            FieldType::I8 => write!(formatter, "i8"),
-            FieldType::U8 => write!(formatter, "u8"),
-            FieldType::I16 => write!(formatter, "i16"),
-            FieldType::U16 => write!(formatter, "u16"),
-            FieldType::F32 => write!(formatter, "f32"),
-            FieldType::I32 => write!(formatter, "i32"),
-            FieldType::U32 => write!(formatter, "u32"),
-            FieldType::F64 => write!(formatter, "f64"),
-            FieldType::I64 => write!(formatter, "i64"),
-            FieldType::U64 => write!(formatter, "u64"),
-            FieldType::I128 => write!(formatter, "i128"),
-            FieldType::U128 => write!(formatter, "u128"),
-            FieldType::Array(array_type, array_size) => write!(formatter, "[{0:?}; {1}]", array_type, array_size.to_string()),
+            FieldType::Primitive(primitive) => match primitive {
+                Primitive::Bool => write!(formatter, "bool"),
+                Primitive::Char => write!(formatter, "char"),
+                Primitive::I8 => write!(formatter, "i8"),
+                Primitive::U8 => write!(formatter, "u8"),
+                Primitive::I16 => write!(formatter, "i16"),
+                Primitive::U16 => write!(formatter, "u16"),
+                Primitive::F32 => write!(formatter, "f32"),
+                Primitive::I32 => write!(formatter, "i32"),
+                Primitive::U32 => write!(formatter, "u32"),
+                Primitive::F64 => write!(formatter, "f64"),
+                Primitive::I64 => write!(formatter, "i64"),
+                Primitive::U64 => write!(formatter, "u64"),
+                Primitive::I128 => write!(formatter, "i128"),
+                Primitive::U128 => write!(formatter, "u128")
+            },
+            FieldType::Array(array_type, array_size) => write!(formatter, "[{0:?}; {1}]", array_type, array_size),
             FieldType::UserDefined(string) => write!(formatter, "{0}", string.clone())
         }
     }
 }
 
-impl FieldType {
+impl Primitive {
     pub fn is_signed(&self) -> bool {
-        match self {
-            FieldType::Char | FieldType::I8 | FieldType::I16 | FieldType::F32 | FieldType::I32 | FieldType::F64 | FieldType::I64 => true,
-            _ => false
-        }
+        matches!(
+            self,
+            Primitive::Char | Primitive::I8 | Primitive::I16 | Primitive::F32 | Primitive::I32 | Primitive::F64 | Primitive::I64 | Primitive::I128
+        )
     }
 }
 
 impl PartialEq for FieldType {
     fn eq(&self, other: &FieldType) -> bool {
         match self {
-            FieldType::Empty => match other {
-                FieldType::Empty => return true,
-                _ => return false
-            },
+            FieldType::Empty => matches!(other, FieldType::Empty),
 
-            FieldType::Bool => match other {
-                FieldType::Bool => return true,
-                _ => return false
-            },
-
-            FieldType::Char => match other {
-                FieldType::Char => return true,
-                _ => return false
-            },
-
-            FieldType::I8 => match other {
-                FieldType::I8 => return true,
-                _ => return false
-            },
-
-            FieldType::U8 => match other {
-                FieldType::U8 => return true,
-                _ => return false
-            },
-
-            FieldType::I16 => match other {
-                FieldType::I16 => return true,
-                _ => return false
-            },
-
-            FieldType::U16 => match other {
-                FieldType::U16 => return true,
-                _ => return false
-            },
-
-            FieldType::F32 => match other {
-                FieldType::F32 => return true,
-                _ => return false
-            },
-
-            FieldType::I32 => match other {
-                FieldType::I32 => return true,
-                _ => return false
-            },
-
-            FieldType::U32 => match other {
-                FieldType::U32 => return true,
-                _ => return false
-            },
-
-            FieldType::F64 => match other {
-                FieldType::F64 => return true,
-                _ => return false
-            },
-
-            FieldType::I64 => match other {
-                FieldType::I64 => return true,
-                _ => return false
-            },
-
-            FieldType::U64 => match other {
-                FieldType::U64 => return true,
-                _ => return false
-            },
-
-            FieldType::I128 => match other {
-                FieldType::I128 => return true,
-                _ => return false
-            },
-
-            FieldType::U128 => match other {
-                FieldType::U128 => return true,
-                _ => return false
+            FieldType::Primitive(primitive) => match other {
+                FieldType::Primitive(other_primitive) => primitive == other_primitive,
+                _ => false
             },
 
             FieldType::Array(array_type, array_size) => match other {
-                FieldType::Array(other_type, other_size) => return (array_type == other_type) && (array_size == other_size),
-                _ => return false
+                FieldType::Array(other_type, other_size) => (array_type == other_type) && (array_size == other_size),
+                _ => false
             },
 
             FieldType::UserDefined(string) => match other {
-                FieldType::UserDefined(other_string) => return string == other_string,
+                FieldType::UserDefined(other_string) => string == other_string,
                 _ => false
             }
         }

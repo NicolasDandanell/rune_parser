@@ -1,11 +1,11 @@
-use crate::types::{FieldType, StandaloneCommentDefinition};
+use crate::types::{Primitive, StandaloneCommentDefinition};
 
 #[derive(Debug, Clone)]
 pub struct BitfieldDefinition {
     /// Name of the bitfield
     pub name:             String,
     /// The primitive backing type of the bitfield. Only integers are valid
-    pub backing_type:     FieldType,
+    pub backing_type:     Primitive,
     /// Members of the bitfield
     pub members:          Vec<BitfieldMember>,
     /// Indexes that are reserved, and should not be used

@@ -7,7 +7,7 @@ pub enum ExtensionDefinition {
     Struct(StructDefinition)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Extensions {
     /// List of bitfield extensions
     pub bitfields: Vec<BitfieldDefinition>,
@@ -27,7 +27,7 @@ impl Extensions {
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.bitfields.is_empty() && self.enums.is_empty() && self.structs.is_empty();
+        self.bitfields.is_empty() && self.enums.is_empty() && self.structs.is_empty()
     }
 
     pub fn with_capacity(size: usize) -> Extensions {
@@ -35,16 +35,6 @@ impl Extensions {
             bitfields: Vec::with_capacity(size),
             enums:     Vec::with_capacity(size),
             structs:   Vec::with_capacity(size)
-        }
-    }
-}
-
-impl Default for Extensions {
-    fn default() -> Extensions {
-        Extensions {
-            bitfields: Default::default(),
-            enums:     Default::default(),
-            structs:   Default::default()
         }
     }
 }
