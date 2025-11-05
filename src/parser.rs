@@ -12,8 +12,9 @@ pub enum ParsingError {
     ScanningError(ScanningError),
     InvalidBitIndex(NumericLiteral),
     InvalidIndex(NumericLiteral),
-    InvalidBitfieldBackingType(FieldType),
-    InvalidEnumBackingType(FieldType),
+    InvalidArrayType(FieldType),
+    InvalidBitfieldBackingType(Primitive),
+    InvalidEnumBackingType(Primitive),
     InvalidEnumValue(NumericLiteral),
     LogicError
 }
@@ -109,7 +110,7 @@ impl NumericLiteral {
                     match *float < 0.0 {
                         true => {
                             error!("Bitfield indexes cannot have negative values!");
-                            return Err(ParsingError::InvalidIndex(self.clone()));
+                            Err(ParsingError::InvalidIndex(self.clone()))
                         },
                         false => match *float as u64 {
                             // Legal values
@@ -117,7 +118,7 @@ impl NumericLiteral {
                             // Higher than legal values
                             BitSize::LIMIT.. => {
                                 error!("Bitfield index cannot have a value higher than 63!");
-                                return Err(ParsingError::InvalidIndex(self.clone()));
+                                Err(ParsingError::InvalidIndex(self.clone()))
                             }
                         }
                     }
@@ -125,7 +126,7 @@ impl NumericLiteral {
             },
             _ => {
                 error!("Bitfield indexes cannot have negative values!");
-                return Err(ParsingError::InvalidBitIndex(self.clone()));
+                Err(ParsingError::InvalidBitIndex(self.clone()))
             }
         }
     }
@@ -245,25 +246,50 @@ pub trait TokenSource: std::clone::Clone {
         }
     }
 
+    fn expect_primitive(&mut self) -> ParsingResult<Spanned<Primitive>> {
+        let token = self.expect_next()?;
+
+        match &token.item {
+            Token::Identifier(string) => match string.as_str() {
+                "bool" => Ok(Spanned::new(Primitive::Bool, token.from, token.to)),
+                "char" => Ok(Spanned::new(Primitive::Char, token.from, token.to)),
+                "i8" => Ok(Spanned::new(Primitive::I8, token.from, token.to)),
+                "u8" => Ok(Spanned::new(Primitive::U8, token.from, token.to)),
+                "i16" => Ok(Spanned::new(Primitive::I16, token.from, token.to)),
+                "u16" => Ok(Spanned::new(Primitive::U16, token.from, token.to)),
+                "f32" => Ok(Spanned::new(Primitive::F32, token.from, token.to)),
+                "i32" => Ok(Spanned::new(Primitive::I32, token.from, token.to)),
+                "u32" => Ok(Spanned::new(Primitive::U32, token.from, token.to)),
+                "f64" => Ok(Spanned::new(Primitive::F64, token.from, token.to)),
+                "i64" => Ok(Spanned::new(Primitive::I64, token.from, token.to)),
+                "u64" => Ok(Spanned::new(Primitive::U64, token.from, token.to)),
+                "i128" => Ok(Spanned::new(Primitive::I128, token.from, token.to)),
+                "u128" => Ok(Spanned::new(Primitive::U128, token.from, token.to)),
+                _ => Err(ParsingError::UnexpectedToken(token))
+            },
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
     fn expect_type(&mut self) -> ParsingResult<Spanned<FieldType>> {
         let token = self.expect_next()?;
         match token.item {
             Token::Identifier(string) => Ok(Spanned::new(
                 match string.as_str() {
-                    "bool" => FieldType::Bool,
-                    "char" => FieldType::Char,
-                    "i8" => FieldType::I8,
-                    "u8" => FieldType::U8,
-                    "i16" => FieldType::I16,
-                    "u16" => FieldType::U16,
-                    "f32" => FieldType::F32,
-                    "i32" => FieldType::I32,
-                    "u32" => FieldType::U32,
-                    "f64" => FieldType::F64,
-                    "i64" => FieldType::I64,
-                    "u64" => FieldType::U64,
-                    "i128" => FieldType::I128,
-                    "u128" => FieldType::U128,
+                    "bool" => FieldType::Primitive(Primitive::Bool),
+                    "char" => FieldType::Primitive(Primitive::Char),
+                    "i8" => FieldType::Primitive(Primitive::I8),
+                    "u8" => FieldType::Primitive(Primitive::U8),
+                    "i16" => FieldType::Primitive(Primitive::I16),
+                    "u16" => FieldType::Primitive(Primitive::U16),
+                    "f32" => FieldType::Primitive(Primitive::F32),
+                    "i32" => FieldType::Primitive(Primitive::I32),
+                    "u32" => FieldType::Primitive(Primitive::U32),
+                    "f64" => FieldType::Primitive(Primitive::F64),
+                    "i64" => FieldType::Primitive(Primitive::I64),
+                    "u64" => FieldType::Primitive(Primitive::U64),
+                    "i128" => FieldType::Primitive(Primitive::I128),
+                    "u128" => FieldType::Primitive(Primitive::U128),
                     _ => FieldType::UserDefined(string)
                 },
                 token.from,
@@ -274,12 +300,10 @@ pub trait TokenSource: std::clone::Clone {
                 let inner_type = self.expect_type()?;
                 self.expect_token(Token::SemiColon)?;
                 let count_token = self.expect_next()?;
+
                 let count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
-                    Token::NumericLiteral(value) => match value {
-                        NumericLiteral::PositiveInteger(value, numeral_system) => ArraySize::Integer(*value, *numeral_system),
-                        _ => return Err(ParsingError::UnexpectedToken(count_token))
-                    },
+                    Token::NumericLiteral(NumericLiteral::PositiveInteger(value, numeral_system)) => ArraySize::Integer(*value, *numeral_system),
 
                     // String will generate a user definition, which will be populated with a value in post processing
                     Token::Identifier(string) => ArraySize::UserDefinition(DefineDefinition {
@@ -293,7 +317,13 @@ pub trait TokenSource: std::clone::Clone {
 
                 let right_bracket = self.expect_token(Token::RightBracket)?;
 
-                Ok(Spanned::new(FieldType::Array(Box::new(inner_type.item), count), token.from, right_bracket.to))
+                let array_type: ArrayType = match inner_type.item {
+                    FieldType::Primitive(primitive) => ArrayType::Primitive(primitive),
+                    FieldType::UserDefined(string) => ArrayType::UserDefined(string),
+                    _ => return Err(ParsingError::InvalidArrayType(inner_type.item))
+                };
+
+                Ok(Spanned::new(FieldType::Array(array_type, count), token.from, right_bracket.to))
             },
 
             _ => Err(ParsingError::UnexpectedToken(token))
@@ -348,7 +378,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
 
     // Backing type
     tokens.expect_token(Token::Colon)?;
-    let backing_type = tokens.expect_type()?.item;
+    let backing_type = tokens.expect_primitive()?.item;
 
     // Validate backing type
     if !backing_type.can_back_bitfield() {
@@ -398,7 +428,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
                     true => reserved_indexes.push(item.to_bit_index()?),
                     false => {
                         error!("Reserved index {0} in bitfield {1} is not valid within backing type {2:?}", index, name, backing_type);
-                        return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveInteger(index as u64, NumeralSystem::Decimal)));
+                        return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveInteger(index, NumeralSystem::Decimal)));
                     }
                 }
 
@@ -433,7 +463,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
 
         if !backing_type.validate_bit_index(&index) {
             error!("Index {0} in bitfield {1} is not valid within backing type {2:?}", index, name, backing_type);
-            return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveInteger(index as u64, NumeralSystem::Decimal)));
+            return Err(ParsingError::InvalidBitIndex(NumericLiteral::PositiveInteger(index, NumeralSystem::Decimal)));
         };
 
         members.push(BitfieldMember {
@@ -452,14 +482,14 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         }
     }
 
-    return Ok(BitfieldDefinition {
+    Ok(BitfieldDefinition {
         name,
         backing_type,
         members,
         reserved_indexes,
         comment,
         orphan_comments
-    });
+    })
 }
 
 fn parse_define(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<DefineDefinition, ParsingError> {
@@ -511,7 +541,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
 
     // Get backing type
     tokens.expect_token(Token::Colon)?;
-    let backing_type = tokens.expect_type()?.item;
+    let backing_type = tokens.expect_primitive()?.item;
 
     // Validate backing type
     if !backing_type.can_back_enum() {
@@ -558,12 +588,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
                 match backing_type.validate_value(&item) {
                     true => reserved_values.push(item),
                     false => {
-                        error!(
-                            "Reserved enum value {0} in enum {1} does not conform within backing type {2:?}",
-                            item.to_string(),
-                            name,
-                            backing_type
-                        );
+                        error!("Reserved enum value {0} in enum {1} does not conform within backing type {2:?}", item.to_string(), name, backing_type);
                         return Err(ParsingError::InvalidEnumValue(item));
                     }
                 }
@@ -634,17 +659,17 @@ fn parse_extension(tokens: &mut impl TokenSource, last_comment: &mut Option<Stri
     match &next_token.item {
         Token::Bitfield => match parse_bitfield(tokens, last_comment) {
             Ok(definition) => Ok(ExtensionDefinition::Bitfield(definition)),
-            Err(error) => return Err(error)
+            Err(error) => Err(error)
         },
         Token::Enum => match parse_enum(tokens, last_comment) {
             Ok(definition) => Ok(ExtensionDefinition::Enum(definition)),
-            Err(error) => return Err(error)
+            Err(error) => Err(error)
         },
         Token::Struct => match parse_struct(tokens, last_comment) {
             Ok(definition) => Ok(ExtensionDefinition::Struct(definition)),
-            Err(error) => return Err(error)
+            Err(error) => Err(error)
         },
-        _ => return Err(ParsingError::UnexpectedToken(next_token.clone()))
+        _ => Err(ParsingError::UnexpectedToken(next_token.clone()))
     }
 }
 
@@ -655,7 +680,7 @@ fn parse_include(tokens: &mut impl TokenSource, _: &mut Option<String>) -> Resul
 
     tokens.expect_token(Token::SemiColon)?;
 
-    return Ok(IncludeDefinition { file: string });
+    Ok(IncludeDefinition { file: string })
 }
 
 fn parse_redefine(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<RedefineDefinition, ParsingError> {
@@ -735,7 +760,7 @@ fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result
                         };
 
                         // Check that end is larger than start
-                        if !(end > start) {
+                        if end <= start {
                             error!("Start of range was larger or equal to end of range");
                             return Err(ParsingError::LogicError);
                         }
@@ -765,7 +790,7 @@ fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result
                         };
 
                         // Check that end is larger than start
-                        if !(end > start) {
+                        if end <= start {
                             error!("Start of range was larger or equal to end of range");
                             return Err(ParsingError::LogicError);
                         }
@@ -787,7 +812,7 @@ fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result
         }
     }
 
-    return Ok(reserved_values);
+    Ok(reserved_values)
 }
 
 fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<StructDefinition, ParsingError> {

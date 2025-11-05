@@ -3,11 +3,11 @@ use std::ops::Range;
 use crate::{
     output::is_silent,
     scanner::NumericLiteral,
-    types::{FieldIndex, FieldType},
+    types::{FieldIndex, Primitive},
     RuneFileDescription, RuneParserError
 };
 
-impl FieldType {
+impl Primitive {
     // Single Byte
     const BYTE_RANGE: Range<i64> = (i8::MIN as i64)..(i8::MAX as i64);
     const UBYTE_RANGE: Range<u64> = (u8::MIN as u64)..(u8::MAX as u64);
@@ -23,7 +23,7 @@ impl FieldType {
 
     pub fn can_back_bitfield(&self) -> bool {
         match self {
-            FieldType::Char | FieldType::I8 | FieldType::U8 | FieldType::I16 | FieldType::U16 | FieldType::I32 | FieldType::U32 | FieldType::I64 | FieldType::U64 => true,
+            Primitive::Char | Primitive::I8 | Primitive::U8 | Primitive::I16 | Primitive::U16 | Primitive::I32 | Primitive::U32 | Primitive::I64 | Primitive::U64 => true,
 
             // All other types are invalid
             _ => false
@@ -32,18 +32,18 @@ impl FieldType {
 
     pub fn can_back_enum(&self) -> bool {
         match self {
-            FieldType::Bool
-            | FieldType::Char
-            | FieldType::I8
-            | FieldType::U8
-            | FieldType::I16
-            | FieldType::U16
-            | FieldType::F32
-            | FieldType::I32
-            | FieldType::U32
-            | FieldType::F64
-            | FieldType::I64
-            | FieldType::U64 => true,
+            Primitive::Bool
+            | Primitive::Char
+            | Primitive::I8
+            | Primitive::U8
+            | Primitive::I16
+            | Primitive::U16
+            | Primitive::F32
+            | Primitive::I32
+            | Primitive::U32
+            | Primitive::F64
+            | Primitive::I64
+            | Primitive::U64 => true,
 
             // All other types are invalid
             _ => false
@@ -52,10 +52,10 @@ impl FieldType {
 
     pub fn validate_bit_index(&self, index: &u64) -> bool {
         match self {
-            FieldType::Char | FieldType::I8 | FieldType::U8 => *index < 8,
-            FieldType::I16 | FieldType::U16 => *index < 16,
-            FieldType::I32 | FieldType::U32 => *index < 32,
-            FieldType::I64 | FieldType::U64 => *index < 64,
+            Primitive::Char | Primitive::I8 | Primitive::U8 => *index < 8,
+            Primitive::I16 | Primitive::U16 => *index < 16,
+            Primitive::I32 | Primitive::U32 => *index < 32,
+            Primitive::I64 | Primitive::U64 => *index < 64,
 
             // All other types are invalid
             _ => false
@@ -65,10 +65,10 @@ impl FieldType {
     /// Used to validate whether the total size of a bitfield can fit within its backing type
     pub fn validate_bitfield_size(&self, bitfield_size: &u64) -> bool {
         match self {
-            FieldType::Char | FieldType::I8 | FieldType::U8 => *bitfield_size <= 8,
-            FieldType::I16 | FieldType::U16 => *bitfield_size <= 16,
-            FieldType::I32 | FieldType::U32 => *bitfield_size <= 32,
-            FieldType::I64 | FieldType::U64 => *bitfield_size <= 64,
+            Primitive::Char | Primitive::I8 | Primitive::U8 => *bitfield_size <= 8,
+            Primitive::I16 | Primitive::U16 => *bitfield_size <= 16,
+            Primitive::I32 | Primitive::U32 => *bitfield_size <= 32,
+            Primitive::I64 | Primitive::U64 => *bitfield_size <= 64,
 
             // All other types are invalid
             _ => false
@@ -79,66 +79,66 @@ impl FieldType {
     pub fn validate_value(&self, value: &NumericLiteral) -> bool {
         match self {
             // Single Byte
-            FieldType::Bool => match value {
+            Primitive::Bool => match value {
                 NumericLiteral::Boolean(_) => true,
                 _ => false
             },
 
-            FieldType::Char | FieldType::I8 => match value {
+            Primitive::Char | Primitive::I8 => match value {
                 NumericLiteral::PositiveInteger(value, _) => *value <= i8::MAX as u64,
-                NumericLiteral::NegativeInteger(value, _) => FieldType::BYTE_RANGE.contains(value),
+                NumericLiteral::NegativeInteger(value, _) => Primitive::BYTE_RANGE.contains(value),
                 _ => false
             },
 
-            FieldType::U8 => match value {
-                NumericLiteral::PositiveInteger(value, _) => FieldType::UBYTE_RANGE.contains(value),
+            Primitive::U8 => match value {
+                NumericLiteral::PositiveInteger(value, _) => Primitive::UBYTE_RANGE.contains(value),
                 _ => false
             },
 
             // Two Bytes
-            FieldType::I16 => match value {
+            Primitive::I16 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value <= i16::MAX as u64,
                 // Negatives
-                NumericLiteral::NegativeInteger(value, _) => FieldType::SHORT_RANGE.contains(value),
+                NumericLiteral::NegativeInteger(value, _) => Primitive::SHORT_RANGE.contains(value),
                 _ => false
             },
-            FieldType::U16 => match value {
-                NumericLiteral::PositiveInteger(value, _) => FieldType::USHORT_RANGE.contains(value),
+            Primitive::U16 => match value {
+                NumericLiteral::PositiveInteger(value, _) => Primitive::USHORT_RANGE.contains(value),
                 _ => false
             },
 
             // Four Bytes
-            FieldType::F32 => match value {
-                NumericLiteral::Float(float) => FieldType::FLOAT_RANGE.contains(float),
+            Primitive::F32 => match value {
+                NumericLiteral::Float(float) => Primitive::FLOAT_RANGE.contains(float),
                 _ => false
             },
-            FieldType::I32 => match value {
+            Primitive::I32 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value <= i32::MAX as u64,
                 // Negatives
-                NumericLiteral::NegativeInteger(value, _) => FieldType::INT_RANGE.contains(value),
+                NumericLiteral::NegativeInteger(value, _) => Primitive::INT_RANGE.contains(value),
                 _ => false
             },
-            FieldType::U32 => match value {
-                NumericLiteral::PositiveInteger(value, _) => FieldType::UINT_RANGE.contains(value),
+            Primitive::U32 => match value {
+                NumericLiteral::PositiveInteger(value, _) => Primitive::UINT_RANGE.contains(value),
                 _ => false
             },
 
             // Eight Bytes - Make assumptions, as if the value would not fit, we would not even be able to parse it into the program...
-            FieldType::F64 => match value {
+            Primitive::F64 => match value {
                 NumericLiteral::Float(_) => true,
                 _ => false
             },
 
-            FieldType::I64 => match value {
+            Primitive::I64 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value < i64::MAX as u64,
                 // Negatives
                 NumericLiteral::NegativeInteger(_, _) => true,
                 _ => false
             },
-            FieldType::U64 => match value {
+            Primitive::U64 => match value {
                 NumericLiteral::PositiveInteger(_, _) => true,
                 _ => false
             },
@@ -262,9 +262,7 @@ pub fn validate_bitfields(files: &Vec<RuneFileDescription>) -> Result<(), RunePa
             if !bitfield_definition.backing_type.validate_bitfield_size(&total_size) {
                 error!(
                     "Error at {0}: Total size of members ({1} bytes) cannot fit within backing type {2:?}",
-                    bitfield_definition.name,
-                    total_size,
-                    bitfield_definition.backing_type
+                    bitfield_definition.name, total_size, bitfield_definition.backing_type
                 );
                 return Err(RuneParserError::InvalidTotalBitfieldSize);
             }

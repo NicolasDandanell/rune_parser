@@ -17,15 +17,15 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
     let mut enum_extensions: Vec<EnumExtension> = Vec::with_capacity(VEC_SIZE);
     let mut struct_extensions: Vec<StructExtension> = Vec::with_capacity(VEC_SIZE);
 
-    for file_index in 0..definitions.len() {
+    for file in &mut *definitions {
         // Check if there is any definitions in this file
-        if !definitions[file_index].definitions.extensions.is_empty() {
+        if !file.definitions.extensions.is_empty() {
             // Add all bitfield extensions, as well as which file they came from
-            for bitfield_extension in &definitions[file_index].definitions.extensions.bitfields {
-                info!("    Found extension to {0} in file {1}.rune", bitfield_extension.name, definitions[file_index].file_name);
+            for bitfield_extension in &file.definitions.extensions.bitfields {
+                info!("    Found extension to {0} in file {1}.rune", bitfield_extension.name, file.name);
 
                 let extension: BitfieldExtension = BitfieldExtension {
-                    files:      Vec::from([definitions[file_index].file_name.clone()]),
+                    files:      Vec::from([file.name.clone()]),
                     definition: bitfield_extension.clone()
                 };
 
@@ -33,11 +33,11 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
             }
 
             // Add all enum extensions, as well as which file they came from
-            for enum_extension in &definitions[file_index].definitions.extensions.enums {
-                info!("    Found extension to {0} in {1}.rune", enum_extension.name, definitions[file_index].file_name);
+            for enum_extension in &file.definitions.extensions.enums {
+                info!("    Found extension to {0} in {1}.rune", enum_extension.name, file.name);
 
                 let extension: EnumExtension = EnumExtension {
-                    files:      Vec::from([definitions[file_index].file_name.clone()]),
+                    files:      Vec::from([file.name.clone()]),
                     definition: enum_extension.clone()
                 };
 
@@ -45,11 +45,11 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
             }
 
             // Add all struct extensions, as well as which file they came from
-            for struct_extension in &definitions[file_index].definitions.extensions.structs {
-                info!("    Found extension to {0} in file {1}.rune", struct_extension.name, definitions[file_index].file_name);
+            for struct_extension in &file.definitions.extensions.structs {
+                info!("    Found extension to {0} in file {1}.rune", struct_extension.name, file.name);
 
                 let extension: StructExtension = StructExtension {
-                    files:      Vec::from([definitions[file_index].file_name.clone()]),
+                    files:      Vec::from([file.name.clone()]),
                     definition: struct_extension.clone()
                 };
 
@@ -75,9 +75,7 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     if bitfield_extensions[i].definition.backing_type != bitfield_extensions[z].definition.backing_type {
                         error!(
                             "Two extensions of {0} have mismatching backing types {1:?} and {2:?}",
-                            bitfield_extensions[i].definition.name,
-                            bitfield_extensions[i].definition.backing_type,
-                            bitfield_extensions[z].definition.backing_type
+                            bitfield_extensions[i].definition.name, bitfield_extensions[i].definition.backing_type, bitfield_extensions[z].definition.backing_type
                         );
                         return Err(RuneParserError::ExtensionMismatch);
                     }
@@ -126,9 +124,7 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     if enum_extensions[i].definition.backing_type != enum_extensions[z].definition.backing_type {
                         error!(
                             "Two extensions of {0} have mismatching backing types {1:?} and {2:?}",
-                            enum_extensions[i].definition.name,
-                            enum_extensions[i].definition.backing_type,
-                            enum_extensions[z].definition.backing_type
+                            enum_extensions[i].definition.name, enum_extensions[i].definition.backing_type, enum_extensions[z].definition.backing_type
                         );
                         return Err(RuneParserError::ExtensionMismatch);
                     }
@@ -210,18 +206,14 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
         // Append Bitfields
         for extension in bitfield_extensions {
             // Find original definition
-            for i in 0..definitions.len() {
-                let file = &mut definitions[i];
-
+            for file in &mut *definitions {
                 for bitfield_definition in &mut file.definitions.bitfields {
                     if bitfield_definition.name == extension.definition.name {
                         // Check that backing types match
                         if bitfield_definition.backing_type != extension.definition.backing_type {
                             error!(
                                 "Extension to {0} has wrong backing type {1:?} instead of original type {2:?}",
-                                bitfield_definition.name,
-                                extension.definition.backing_type,
-                                bitfield_definition.backing_type
+                                bitfield_definition.name, extension.definition.backing_type, bitfield_definition.backing_type
                             );
                             return Err(RuneParserError::ExtensionMismatch);
                         }
@@ -254,18 +246,14 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
         // Append Enums
         for extension in enum_extensions {
             // Find original definition
-            for i in 0..definitions.len() {
-                let file = &mut definitions[i];
-
+            for file in &mut *definitions {
                 for enum_definition in &mut file.definitions.enums {
                     if enum_definition.name == extension.definition.name {
                         // Check that backing types match
                         if enum_definition.backing_type != extension.definition.backing_type {
                             error!(
                                 "Extension to {0} has wrong backing type {1:?} instead of original type {2:?}",
-                                enum_definition.name,
-                                extension.definition.backing_type,
-                                enum_definition.backing_type
+                                enum_definition.name, extension.definition.backing_type, enum_definition.backing_type
                             );
                             return Err(RuneParserError::ExtensionMismatch);
                         }
@@ -298,9 +286,7 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
         // Append Structs
         for extension in struct_extensions {
             // Find original definition
-            for i in 0..definitions.len() {
-                let file = &mut definitions[i];
-
+            for file in &mut *definitions {
                 for struct_definition in &mut file.definitions.structs {
                     if struct_definition.name == extension.definition.name {
                         // Check for collisions
@@ -329,7 +315,7 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
@@ -400,42 +386,33 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
             // Check all struct members
             for member in &mut struct_definition.members {
                 // Check if field type is array
-                match &mut member.data_type {
-                    FieldType::Array(_, array_size) => {
-                        // Check if array size is a define value
-                        match array_size {
-                            ArraySize::UserDefinition(definition) => {
-                                // Find define value
-                                for user_define in &defines_list {
-                                    // Match with identifier string
-                                    if user_define.name == definition.name {
-                                        // Check for redefinition
-                                        let define_value: &DefineValue = match &user_define.redefinition {
-                                            None => &user_define.value,
-                                            Some(redefine) => &redefine.value
-                                        };
+                if let FieldType::Array(_, ArraySize::UserDefinition(definition)) = &mut member.data_type {
+                    // Find define value
+                    for user_define in &defines_list {
+                        // Match with identifier string
+                        if user_define.name == definition.name {
+                            // Check for redefinition
+                            let define_value: &DefineValue = match &user_define.redefinition {
+                                None => &user_define.value,
+                                Some(redefine) => &redefine.value
+                            };
 
-                                        // Parse the value. Only integer values are valid
-                                        match define_value {
-                                            DefineValue::NumericLiteral(value) => match value {
-                                                NumericLiteral::PositiveInteger(_, _) => definition.value = DefineValue::NumericLiteral(value.clone()),
-                                                _ => {
-                                                    error!("Could not parse {0} into a valid positive integer value!", definition.name);
-                                                    return Err(RuneParserError::InvalidNumericValue);
-                                                }
-                                            },
-                                            _ => {
-                                                error!("Could not parse {0} into a valid positive integer value!", definition.name);
-                                                return Err(RuneParserError::InvalidNumericValue);
-                                            }
-                                        }
+                            // Parse the value. Only integer values are valid
+                            match define_value {
+                                DefineValue::NumericLiteral(value) => match value {
+                                    NumericLiteral::PositiveInteger(_, _) => definition.value = DefineValue::NumericLiteral(value.clone()),
+                                    _ => {
+                                        error!("Could not parse {0} into a valid positive integer value!", definition.name);
+                                        return Err(RuneParserError::InvalidNumericValue);
                                     }
+                                },
+                                _ => {
+                                    error!("Could not parse {0} into a valid positive integer value!", definition.name);
+                                    return Err(RuneParserError::InvalidNumericValue);
                                 }
-                            },
-                            _ => ()
+                            }
                         }
-                    },
-                    _ => ()
+                    }
                 }
             }
         }
@@ -445,7 +422,7 @@ pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Re
         warning!("Define statement for redefinition {0} not found, so it will thus be ignored and do nothing.", orphan_redefinition.name);
     }
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
@@ -460,20 +437,14 @@ pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) -> Resu
             // Check all struct members
             for member in &mut struct_definition.members {
                 // Check if struct member is user defined
-                match &member.data_type {
-                    FieldType::UserDefined(name) => {
-                        member.user_definition_link = match find_definition(name, &immutable_reference) {
-                            Err(error) => return Err(error),
-                            Ok(definition_link) => definition_link
-                        };
-                    },
-                    _ => ()
+                if let FieldType::UserDefined(name) = &member.data_type {
+                    member.user_definition_link = find_definition(name, &immutable_reference)?;
                 }
             }
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) -> Result<UserDefinitionLink, RuneParserError> {
@@ -506,15 +477,9 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
 
                 // Call recursively if struct found contains user defined members
                 for member in &mut definition_copy.members {
-                    match &member.data_type {
-                        FieldType::UserDefined(name) => {
-                            // Since we return a copy, we can easily modify the definition_copy without issue
-                            member.user_definition_link = match find_definition(&name, definitions) {
-                                Ok(definition_link) => definition_link,
-                                Err(error) => return Err(error)
-                            }
-                        },
-                        _ => ()
+                    if let FieldType::UserDefined(name) = &member.data_type {
+                        // Since we return a copy, we can easily modify the definition_copy without issue
+                        member.user_definition_link = find_definition(&name, definitions)?;
                     }
                 }
 
@@ -524,7 +489,7 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
     }
 
     error!("Found no user definition for identifier '{0}'!", identifier);
-    return Err(RuneParserError::UndefinedIdentifier);
+    Err(RuneParserError::UndefinedIdentifier)
 }
 
 // Utility Structs

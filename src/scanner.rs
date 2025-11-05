@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{output::*, types::FieldType};
+use crate::{output::*, types::Primitive};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -96,12 +96,12 @@ pub enum NumericLiteral {
 }
 
 impl NumericLiteral {
-    pub fn containing_type(&self) -> FieldType {
+    pub fn containing_type(&self) -> Primitive {
         match self {
-            NumericLiteral::Boolean(_) => FieldType::Bool,
-            NumericLiteral::PositiveInteger(_, _) => FieldType::U64,
-            NumericLiteral::NegativeInteger(_, _) => FieldType::I64,
-            NumericLiteral::Float(_) => FieldType::F64
+            NumericLiteral::Boolean(_) => Primitive::Bool,
+            NumericLiteral::PositiveInteger(_, _) => Primitive::U64,
+            NumericLiteral::NegativeInteger(_, _) => Primitive::I64,
+            NumericLiteral::Float(_) => Primitive::F64
         }
     }
 }
@@ -344,7 +344,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             // Binary
             _ if string.contains("0b") => {
                 let index = string.find("0b").unwrap();
-                if (string.remove(index) == '0' && string.remove(index) == 'b') == false {
+                if !(string.remove(index) == '0' && string.remove(index) == 'b') {
                     error!("Something went wrong in parsing binary literal!");
                     return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
                 }
@@ -353,7 +353,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             },
             _ if string.contains("0B") => {
                 let index = string.find("0B").unwrap();
-                if (string.remove(index) == '0' && string.remove(index) == 'B') == false {
+                if !(string.remove(index) == '0' && string.remove(index) == 'B') {
                     error!("Something went wrong in parsing binary literal!");
                     return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
                 }
@@ -364,7 +364,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             // Hexadecimal
             _ if string.contains("0x") => {
                 let index = string.find("0x").unwrap();
-                if (string.remove(index) == '0' && string.remove(index) == 'x') == false {
+                if !(string.remove(index) == '0' && string.remove(index) == 'x') {
                     error!("Something went wrong in parsing hexadecimal literal!");
                     return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
                 }
@@ -373,7 +373,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             },
             _ if string.contains("0X") => {
                 let index = string.find("0X").unwrap();
-                if (string.remove(index) == '0' && string.remove(index) == 'X') == false {
+                if !(string.remove(index) == '0' && string.remove(index) == 'X') {
                     error!("Something went wrong in parsing hexadecimal literal!");
                     return Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)));
                 }
@@ -396,14 +396,14 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                 let numeral_system: NumeralSystem = NumeralSystem::Binary;
 
                 match is_negative {
-                    true => match i64::from_str_radix(&string, 2) {
+                    true => match i64::from_str_radix(string, 2) {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                         },
                         Ok(value) => Ok(NumericLiteral::NegativeInteger(value, numeral_system))
                     },
-                    false => match u64::from_str_radix(&string, 2) {
+                    false => match u64::from_str_radix(string, 2) {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
@@ -416,14 +416,14 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                 let numeral_system: NumeralSystem = NumeralSystem::Decimal;
 
                 match is_negative {
-                    true => match i64::from_str_radix(&string, 10) {
+                    true => match i64::from_str_radix(string, 10) {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                         },
                         Ok(value) => Ok(NumericLiteral::NegativeInteger(value, numeral_system))
                     },
-                    false => match u64::from_str_radix(&string, 10) {
+                    false => match u64::from_str_radix(string, 10) {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
@@ -436,14 +436,14 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                 let numeral_system: NumeralSystem = NumeralSystem::Hexadecimal;
 
                 match is_negative {
-                    true => match i64::from_str_radix(&string, 16) {
+                    true => match i64::from_str_radix(string, 16) {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                         },
                         Ok(value) => Ok(NumericLiteral::NegativeInteger(value, numeral_system))
                     },
-                    false => match u64::from_str_radix(&string, 16) {
+                    false => match u64::from_str_radix(string, 16) {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
@@ -650,7 +650,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             },
             character => {
                 self.advance();
-                return Err(ScanningError::UnexpectedCharacter(Spanned::new(character, from, self.position())));
+                Err(ScanningError::UnexpectedCharacter(Spanned::new(character, from, self.position())))
             }
         }
     }
