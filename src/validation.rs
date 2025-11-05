@@ -79,10 +79,7 @@ impl Primitive {
     pub fn validate_value(&self, value: &NumericLiteral) -> bool {
         match self {
             // Single Byte
-            Primitive::Bool => match value {
-                NumericLiteral::Boolean(_) => true,
-                _ => false
-            },
+            Primitive::Bool => matches!(value, NumericLiteral::Boolean(_)),
 
             Primitive::Char | Primitive::I8 => match value {
                 NumericLiteral::PositiveInteger(value, _) => *value <= i8::MAX as u64,
@@ -126,10 +123,7 @@ impl Primitive {
             },
 
             // Eight Bytes - Make assumptions, as if the value would not fit, we would not even be able to parse it into the program...
-            Primitive::F64 => match value {
-                NumericLiteral::Float(_) => true,
-                _ => false
-            },
+            Primitive::F64 => matches!(value, NumericLiteral::Float(_)),
 
             Primitive::I64 => match value {
                 // Positives
@@ -138,10 +132,8 @@ impl Primitive {
                 NumericLiteral::NegativeInteger(_, _) => true,
                 _ => false
             },
-            Primitive::U64 => match value {
-                NumericLiteral::PositiveInteger(_, _) => true,
-                _ => false
-            },
+
+            Primitive::U64 => matches!(value, NumericLiteral::PositiveInteger(_, _)),
 
             _ => unreachable!("Critical! Invalid backing type for enum encountered during verification. This should never happen!")
         }
@@ -338,7 +330,7 @@ pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RunePars
     for file in files {
         for struct_definition in &file.definitions.structs {
             // Check whether a verification field has been declared
-            let has_verifier: bool = match struct_definition.members.iter().filter(|&x| x.index.is_verifier() == true).count() {
+            let has_verifier: bool = match struct_definition.members.iter().filter(|&x| x.index.is_verifier()).count() {
                 0 => false,
                 1 => true,
                 _ => {

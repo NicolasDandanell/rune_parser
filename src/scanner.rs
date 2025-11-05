@@ -1,4 +1,8 @@
-use std::ops::{Deref, DerefMut};
+use core::fmt;
+use std::{
+    fmt::{Display, Formatter},
+    ops::{Deref, DerefMut}
+};
 
 use crate::{output::*, types::Primitive};
 
@@ -102,6 +106,27 @@ impl NumericLiteral {
             NumericLiteral::PositiveInteger(_, _) => Primitive::U64,
             NumericLiteral::NegativeInteger(_, _) => Primitive::I64,
             NumericLiteral::Float(_) => Primitive::F64
+        }
+    }
+}
+
+impl Display for NumericLiteral {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            NumericLiteral::Boolean(boolean) => write!(formatter, "{0}", boolean),
+            NumericLiteral::Float(float) => write!(formatter, "{0}", float),
+
+            NumericLiteral::PositiveInteger(value, numeral_system) => match numeral_system {
+                NumeralSystem::Binary => write!(formatter, "0b{0:02b}", value),
+                NumeralSystem::Decimal => write!(formatter, "{0}", value),
+                NumeralSystem::Hexadecimal => write!(formatter, "0x{0:02X}", value)
+            },
+
+            NumericLiteral::NegativeInteger(value, numeral_system) => match numeral_system {
+                NumeralSystem::Binary => write!(formatter, "-0b{0:02b}", value.abs()),
+                NumeralSystem::Decimal => write!(formatter, "{0}", value),
+                NumeralSystem::Hexadecimal => write!(formatter, "-0x{0:02X}", value.abs())
+            }
         }
     }
 }
@@ -416,14 +441,14 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                 let numeral_system: NumeralSystem = NumeralSystem::Decimal;
 
                 match is_negative {
-                    true => match i64::from_str_radix(string, 10) {
+                    true => match string.parse::<i64>() {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))
                         },
                         Ok(value) => Ok(NumericLiteral::NegativeInteger(value, numeral_system))
                     },
-                    false => match u64::from_str_radix(string, 10) {
+                    false => match string.parse::<u64>() {
                         Err(error) => {
                             error!("Could not parse numeric value! Got error {0}", error);
                             Err(ScanningError::InvalidLiteral(Spanned::new((), from, to)))

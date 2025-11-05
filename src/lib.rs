@@ -71,8 +71,8 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
 
     // Print all found files
     info!("\nFound the following rune files:");
-    for i in 0..rune_file_list.len() {
-        info!("    {0}", rune_file_list[i]);
+    for file in &rune_file_list {
+        info!("    {0}", file);
     }
 
     // Process rune files
@@ -256,10 +256,7 @@ fn get_rune_files(folder_path: &Path) -> Result<Vec<String>, RuneParserError> {
             let subfolder_path: &Path = Path::new(&subfolder_string);
 
             // Recursively call function to parse files in subfolder
-            let mut subfolder_list: Vec<String> = match get_rune_files(subfolder_path) {
-                Err(error) => return Err(error),
-                Ok(list) => list
-            };
+            let mut subfolder_list: Vec<String> = get_rune_files(subfolder_path)?;
 
             rune_file_list.append(&mut subfolder_list);
         } else if entry_type.is_file() {

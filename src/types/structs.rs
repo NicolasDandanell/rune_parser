@@ -127,7 +127,7 @@ impl Debug for FieldType {
                 Primitive::I128 => write!(formatter, "i128"),
                 Primitive::U128 => write!(formatter, "u128")
             },
-            FieldType::Array(array_type, array_size) => write!(formatter, "[{0:?}; {1}]", array_type, array_size.to_string()),
+            FieldType::Array(array_type, array_size) => write!(formatter, "[{0:?}; {1}]", array_type, array_size),
             FieldType::UserDefined(string) => write!(formatter, "{0}", string.clone())
         }
     }
@@ -135,10 +135,10 @@ impl Debug for FieldType {
 
 impl Primitive {
     pub fn is_signed(&self) -> bool {
-        match self {
-            Primitive::Char | Primitive::I8 | Primitive::I16 | Primitive::F32 | Primitive::I32 | Primitive::F64 | Primitive::I64 | Primitive::I128 => true,
-            _ => false
-        }
+        matches!(
+            self,
+            Primitive::Char | Primitive::I8 | Primitive::I16 | Primitive::F32 | Primitive::I32 | Primitive::F64 | Primitive::I64 | Primitive::I128
+        )
     }
 }
 
@@ -151,23 +151,20 @@ impl PartialEq for Primitive {
 impl PartialEq for FieldType {
     fn eq(&self, other: &FieldType) -> bool {
         match self {
-            FieldType::Empty => match other {
-                FieldType::Empty => return true,
-                _ => return false
-            },
+            FieldType::Empty => matches!(other, FieldType::Empty),
 
             FieldType::Primitive(primitive) => match other {
                 FieldType::Primitive(other_primitive) => primitive == other_primitive,
-                _ => return false
+                _ => false
             },
 
             FieldType::Array(array_type, array_size) => match other {
-                FieldType::Array(other_type, other_size) => return (array_type == other_type) && (array_size == other_size),
-                _ => return false
+                FieldType::Array(other_type, other_size) => (array_type == other_type) && (array_size == other_size),
+                _ => false
             },
 
             FieldType::UserDefined(string) => match other {
-                FieldType::UserDefined(other_string) => return string == other_string,
+                FieldType::UserDefined(other_string) => string == other_string,
                 _ => false
             }
         }

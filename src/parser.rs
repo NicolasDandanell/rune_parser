@@ -12,7 +12,6 @@ pub enum ParsingError {
     ScanningError(ScanningError),
     InvalidBitIndex(NumericLiteral),
     InvalidIndex(NumericLiteral),
-    InvalidArrayType(FieldType),
     InvalidBitfieldBackingType(Primitive),
     InvalidEnumBackingType(Primitive),
     InvalidEnumValue(NumericLiteral),
@@ -20,30 +19,11 @@ pub enum ParsingError {
 }
 
 impl NumericLiteral {
-    pub fn to_string(&self) -> String {
-        match self {
-            NumericLiteral::Boolean(boolean) => boolean.to_string(),
-            NumericLiteral::Float(float) => float.to_string(),
-
-            NumericLiteral::PositiveInteger(value, numeral_system) => match numeral_system {
-                NumeralSystem::Binary => format!("0b{0:02b}", value),
-                NumeralSystem::Decimal => value.to_string(),
-                NumeralSystem::Hexadecimal => format!("0x{0:02X}", value)
-            },
-
-            NumericLiteral::NegativeInteger(value, numeral_system) => match numeral_system {
-                NumeralSystem::Binary => format!("-0b{0:02b}", value.abs()),
-                NumeralSystem::Decimal => value.to_string(),
-                NumeralSystem::Hexadecimal => format!("-0x{0:02X}", value.abs())
-            }
-        }
-    }
-
     pub fn to_field_index(&self) -> Result<u64, ParsingError> {
         match self {
             NumericLiteral::Boolean(_) => {
                 error!("Boolean values are not valid as field indexes");
-                return Err(ParsingError::InvalidIndex(self.clone()));
+                Err(ParsingError::InvalidIndex(self.clone()))
             },
             NumericLiteral::PositiveInteger(value, _) => match value {
                 // Legal values
@@ -51,19 +31,19 @@ impl NumericLiteral {
                 // Higher than legal values
                 FieldIndex::LIMIT.. => {
                     error!("Field index cannot have a value higher than 31!");
-                    return Err(ParsingError::InvalidIndex(self.clone()));
+                    Err(ParsingError::InvalidIndex(self.clone()))
                 }
             },
             // Floating points can be used if they represent an integer value. I have no clue why one would do that though...
             NumericLiteral::Float(float) => match float.fract() == 0.0 {
                 false => {
                     error!("Field indexes must have integer values!");
-                    return Err(ParsingError::InvalidIndex(self.clone()));
+                    Err(ParsingError::InvalidIndex(self.clone()))
                 },
                 true => match *float < 0.0 {
                     true => {
                         error!("Field indexes cannot have negative values!");
-                        return Err(ParsingError::InvalidIndex(self.clone()));
+                        Err(ParsingError::InvalidIndex(self.clone()))
                     },
                     false => {
                         match *float as u64 {
@@ -72,7 +52,7 @@ impl NumericLiteral {
                             // Higher than legal values
                             FieldIndex::LIMIT.. => {
                                 error!("Field index cannot have a value higher than 31!");
-                                return Err(ParsingError::InvalidIndex(self.clone()));
+                                Err(ParsingError::InvalidIndex(self.clone()))
                             }
                         }
                     }
@@ -80,7 +60,7 @@ impl NumericLiteral {
             },
             _ => {
                 error!("Field indexes cannot have negative values!");
-                return Err(ParsingError::InvalidIndex(self.clone()));
+                Err(ParsingError::InvalidIndex(self.clone()))
             }
         }
     }
@@ -89,7 +69,7 @@ impl NumericLiteral {
         match self {
             NumericLiteral::Boolean(_) => {
                 error!("Boolean values are not valid as bitfield indexes");
-                return Err(ParsingError::InvalidIndex(self.clone()));
+                Err(ParsingError::InvalidIndex(self.clone()))
             },
             NumericLiteral::PositiveInteger(value, _) => match value {
                 // Legal values
@@ -97,14 +77,14 @@ impl NumericLiteral {
                 // Higher than legal values
                 BitSize::LIMIT.. => {
                     error!("Bitfield index cannot have a value higher than 63!");
-                    return Err(ParsingError::InvalidIndex(self.clone()));
+                    Err(ParsingError::InvalidIndex(self.clone()))
                 }
             },
             // Floating points can be used if they represent an integer value. I have no clue why one would do that though...
             NumericLiteral::Float(float) => match float.fract() == 0.0 {
                 false => {
                     error!("Bitfield indexes must have integer values!");
-                    return Err(ParsingError::InvalidIndex(self.clone()));
+                    Err(ParsingError::InvalidIndex(self.clone()))
                 },
                 true => {
                     match *float < 0.0 {
@@ -271,6 +251,31 @@ pub trait TokenSource: std::clone::Clone {
         }
     }
 
+    fn expect_array_type(&mut self) -> ParsingResult<Spanned<ArrayType>> {
+        let token = self.expect_next()?;
+
+        match &token.item {
+            Token::Identifier(string) => match string.as_str() {
+                "bool" => Ok(Spanned::new(ArrayType::Primitive(Primitive::Bool), token.from, token.to)),
+                "char" => Ok(Spanned::new(ArrayType::Primitive(Primitive::Char), token.from, token.to)),
+                "i8" => Ok(Spanned::new(ArrayType::Primitive(Primitive::I8), token.from, token.to)),
+                "u8" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U8), token.from, token.to)),
+                "i16" => Ok(Spanned::new(ArrayType::Primitive(Primitive::I16), token.from, token.to)),
+                "u16" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U16), token.from, token.to)),
+                "f32" => Ok(Spanned::new(ArrayType::Primitive(Primitive::F32), token.from, token.to)),
+                "i32" => Ok(Spanned::new(ArrayType::Primitive(Primitive::I32), token.from, token.to)),
+                "u32" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U32), token.from, token.to)),
+                "f64" => Ok(Spanned::new(ArrayType::Primitive(Primitive::F64), token.from, token.to)),
+                "i64" => Ok(Spanned::new(ArrayType::Primitive(Primitive::I64), token.from, token.to)),
+                "u64" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U64), token.from, token.to)),
+                "i128" => Ok(Spanned::new(ArrayType::Primitive(Primitive::I128), token.from, token.to)),
+                "u128" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U128), token.from, token.to)),
+                _ => Ok(Spanned::new(ArrayType::UserDefined(string.clone()), token.from, token.to))
+            },
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
     fn expect_type(&mut self) -> ParsingResult<Spanned<FieldType>> {
         let token = self.expect_next()?;
         match token.item {
@@ -297,7 +302,7 @@ pub trait TokenSource: std::clone::Clone {
             )),
 
             Token::LeftBracket => {
-                let inner_type = self.expect_type()?;
+                let array_type = self.expect_array_type()?;
                 self.expect_token(Token::SemiColon)?;
                 let count_token = self.expect_next()?;
 
@@ -317,13 +322,7 @@ pub trait TokenSource: std::clone::Clone {
 
                 let right_bracket = self.expect_token(Token::RightBracket)?;
 
-                let array_type: ArrayType = match inner_type.item {
-                    FieldType::Primitive(primitive) => ArrayType::Primitive(primitive),
-                    FieldType::UserDefined(string) => ArrayType::UserDefined(string),
-                    _ => return Err(ParsingError::InvalidArrayType(inner_type.item))
-                };
-
-                Ok(Spanned::new(FieldType::Array(array_type, count), token.from, right_bracket.to))
+                Ok(Spanned::new(FieldType::Array(array_type.item, count), token.from, right_bracket.to))
             },
 
             _ => Err(ParsingError::UnexpectedToken(token))
@@ -919,7 +918,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
 }
 
 pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions> {
-    let mut definitions = Definitions::new();
+    let mut definitions = Definitions::default();
     let mut last_comment: Option<String> = None;
 
     let mut last_was_comment: bool = false;

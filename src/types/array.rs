@@ -69,12 +69,12 @@ impl PartialEq for ArraySize {
     fn eq(&self, other: &ArraySize) -> bool {
         match self {
             ArraySize::Integer(value, _) => match other {
-                ArraySize::Integer(other_value, _) => return value == other_value,
+                ArraySize::Integer(other_value, _) => value == other_value,
                 _ => false
             },
             ArraySize::UserDefinition(definition) => match other {
-                ArraySize::UserDefinition(other_definition) => return definition.name == other_definition.name,
-                _ => return false
+                ArraySize::UserDefinition(other_definition) => definition.name == other_definition.name,
+                _ => false
             }
         }
     }

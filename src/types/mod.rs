@@ -17,7 +17,7 @@ pub use standalone_comments::StandaloneCommentDefinition;
 pub use structs::{FieldIndex, FieldType, Primitive, StructDefinition, StructMember, UserDefinitionLink};
 
 /// Top Level Struct containing all message definitions in a compilation unit (file + includes)
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Definitions {
     pub bitfields:           Vec<BitfieldDefinition>,
     pub defines:             Vec<DefineDefinition>,
@@ -27,19 +27,4 @@ pub struct Definitions {
     pub includes:            Vec<IncludeDefinition>,
     pub standalone_comments: Vec<StandaloneCommentDefinition>,
     pub structs:             Vec<StructDefinition>
-}
-
-impl Definitions {
-    pub fn new() -> Self {
-        Self {
-            bitfields:           Default::default(),
-            defines:             Default::default(),
-            redefines:           Default::default(),
-            enums:               Default::default(),
-            extensions:          Default::default(),
-            includes:            Default::default(),
-            standalone_comments: Default::default(),
-            structs:             Default::default()
-        }
-    }
 }

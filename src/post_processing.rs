@@ -479,7 +479,7 @@ fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) 
                 for member in &mut definition_copy.members {
                     if let FieldType::UserDefined(name) = &member.data_type {
                         // Since we return a copy, we can easily modify the definition_copy without issue
-                        member.user_definition_link = find_definition(&name, definitions)?;
+                        member.user_definition_link = find_definition(name, definitions)?;
                     }
                 }
 
