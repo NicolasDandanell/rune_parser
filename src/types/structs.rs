@@ -71,7 +71,7 @@ impl PartialEq for FieldIndex {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Primitive {
     // 1 byte primitives
     Bool,
@@ -139,12 +139,6 @@ impl Primitive {
             self,
             Primitive::Char | Primitive::I8 | Primitive::I16 | Primitive::F32 | Primitive::I32 | Primitive::F64 | Primitive::I64 | Primitive::I128
         )
-    }
-}
-
-impl PartialEq for Primitive {
-    fn eq(&self, other: &Primitive) -> bool {
-        self.clone() as usize == other.clone() as usize
     }
 }
 
