@@ -42,37 +42,63 @@ pub enum RuneParserError {
     InvalidNumericValue
 }
 
-pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: bool) -> Result<Vec<RuneFileDescription>, RuneParserError> {
+struct RuneFile {
+    name:        String,
+    source_path: String
+}
+
+pub fn parser_rune_files(input_paths: &[&Path], append_extensions: bool, silent: bool) -> Result<Vec<RuneFileDescription>, RuneParserError> {
     // Enable silent mode if requested by user
     if silent {
         enable_silent();
     }
 
-    if !input_path.exists() || !input_path.is_dir() {
-        if !input_path.exists() {
-            error!("Input path \"{0}\" does not exist!", input_path.to_str().expect("Could not parse OS string!"));
-        } else if !input_path.is_dir() {
-            error!("Input path \"{0}\" is not a directory!", input_path.to_str().expect("Could not parse OS string!"));
+    // Create a vector with allocated space for 64 rune files, which should be more than plenty for most projects
+    let mut rune_file_list: Vec<RuneFile> = Vec::with_capacity(ALLOCATION_SIZE);
+
+    for input_path in input_paths {
+        // Sanity check path
+        if !input_path.exists() || !input_path.is_dir() {
+            if !input_path.exists() {
+                error!("Input path \"{0}\" does not exist!", input_path.to_str().expect("Could not parse OS string!"));
+            } else if !input_path.is_dir() {
+                error!("Input path \"{0}\" is not a directory!", input_path.to_str().expect("Could not parse OS string!"));
+            }
+
+            return Err(RuneParserError::InvalidInputPath);
         }
 
-        return Err(RuneParserError::InvalidInputPath);
+        // Get path as string
+        let input_path_string: String = match input_path.to_str() {
+            None => {
+                warning!("Could not get string from file path {0:?}", input_path);
+                continue;
+            },
+            Some(string) => String::from(string)
+        };
+
+        // Get rune files in path
+        info!("Searching input path {0:?}", input_path);
+        let file_list: Vec<String> = get_rune_files(input_path)?;
+
+        // Add found files to list
+        for rune_file in file_list {
+            rune_file_list.push(RuneFile {
+                name:        rune_file,
+                source_path: input_path_string.clone()
+            });
+        }
     }
 
-    // Get rune files from folder
-    // ———————————————————————————
-
-    // Create a vector with allocated space for 64 rune files, which should be more than plenty for most projects
-    let rune_file_list: Vec<String> = get_rune_files(input_path)?;
-
     if rune_file_list.is_empty() {
-        warning!("Could not parse any rune files from folder. Returning empty list");
+        warning!("Could not parse any rune files from paths. Returning empty list");
         return Ok(Vec::new());
     }
 
     // Print all found files
-    info!("\nFound the following rune files:");
+    info!("Found the following rune files:");
     for file in &rune_file_list {
-        info!("    {0}", file);
+        info!("    {0}", file.name);
     }
 
     // Process rune files
@@ -80,8 +106,8 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
 
     let mut definitions_list: Vec<RuneFileDescription> = Vec::with_capacity(ALLOCATION_SIZE);
 
-    for filepath in rune_file_list {
-        let file_path: &Path = Path::new(&filepath);
+    for rune_file in rune_file_list {
+        let file_path: &Path = Path::new(&rune_file.name);
 
         let file = match std::fs::read_to_string(file_path) {
             Err(error) => {
@@ -94,7 +120,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
         // Scan file for tokens
         let tokens = match Scanner::new(file.chars()).scan_all() {
             Err(error) => {
-                error!("Error while scanning file {0}: {1:#?}", filepath, error);
+                error!("Error while scanning file {0}: {1:#?}", rune_file.name, error);
                 continue;
             },
             Ok(tokens) => tokens
@@ -103,7 +129,7 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
         // Parse all scanned tokens
         let definitions: Definitions = match parse_tokens(&mut tokens.into_iter().peekable()) {
             Err(error) => {
-                error!("Error while parsing file {0}: {1:#?}", filepath, error);
+                error!("Error while parsing file {0}: {1:#?}", rune_file.name, error);
                 continue;
             },
             Ok(tokens) => tokens
@@ -132,28 +158,20 @@ pub fn parser_rune_files(input_path: &Path, append_extensions: bool, silent: boo
             Some(stripped_name) => stripped_name.to_string()
         };
 
-        let input_path_string = match input_path.to_str() {
-            None => {
-                error!("Could not parse input path: \"{0:?}\"", input_path);
-                continue;
-            },
-            Some(string) => string
-        };
-
         // Get relative path (from input path)
-        let relative_path = match filepath.strip_prefix(input_path_string) {
+        let relative_path = match rune_file.name.strip_prefix(&rune_file.source_path) {
             None => {
-                warning!("Could not get relative path from input path string \"{0}\"", input_path_string);
+                warning!("Could not get relative path from input path string \"{0}\"", rune_file.source_path);
                 continue;
             },
             Some(string) => match string.strip_prefix("/") {
                 None => {
-                    warning!("Could not get relative path from input path string \"{0}\"", input_path_string);
+                    warning!("Could not get relative path from input path string \"{0}\"", rune_file.source_path);
                     continue;
                 },
                 Some(stripped_path) => match stripped_path.strip_suffix(&full_file_name) {
                     None => {
-                        warning!("Could not get relative path from input path string \"{0}\"", input_path_string);
+                        warning!("Could not get relative path from input path string \"{0}\"", rune_file.source_path);
                         continue;
                     },
                     Some(relative_path) => relative_path.to_string()
@@ -233,7 +251,7 @@ fn get_rune_files(folder_path: &Path) -> Result<Vec<String>, RuneParserError> {
             // Subfolder
             // ——————————
 
-            info!("Found subdirectory named {0:?}", directory_entry.file_name());
+            info!("    Found subdirectory named {0:?}", directory_entry.file_name());
 
             let subfolder_string: String = format!(
                 "{0}/{1}",
