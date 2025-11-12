@@ -310,6 +310,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
         match what.to_owned().to_lowercase().as_str() {
             "bitfield" => Some(Token::Bitfield),
             "define" => Some(Token::Define),
+            "deprecate" /* Alias for reserve */ => Some(Token::Reserve),
             "enum" => Some(Token::Enum),
             "extend" => Some(Token::Extend),
             "false" => Some(Token::NumericLiteral(NumericLiteral::Boolean(false))),
