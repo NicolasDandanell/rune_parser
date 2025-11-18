@@ -1,48 +1,37 @@
-use std::fmt::{Debug, Formatter, Result};
+use std::fmt::{Debug, Formatter};
 
-use crate::types::{ArraySize, ArrayType, BitfieldDefinition, EnumDefinition, StandaloneCommentDefinition};
+use crate::{
+    output::*,
+    types::{Array, Primitive, StandaloneCommentDefinition, UserDefinitionLink},
+    RuneParserError
+};
 
 #[derive(Debug, Clone)]
 pub struct StructDefinition {
     /// Name of the struct
-    pub name:             String,
-    /// Data fields of the struct
-    pub members:          Vec<StructMember>,
-    /// Indexes that are reserved, and should not be used
-    pub reserved_indexes: Vec<FieldIndex>,
+    pub name:            String,
+    /// Members of the struct
+    pub members:         Vec<StructMember>,
     /// Comment describing the struct
-    pub comment:          Option<String>,
-    /// Loose comments inside the bitfield declaration
-    pub orphan_comments:  Vec<StandaloneCommentDefinition>
+    pub comment:         Option<String>,
+    /// Loose comments inside the struct declaration
+    pub orphan_comments: Vec<StandaloneCommentDefinition>
 }
 
 #[derive(Debug, Clone)]
 pub struct StructMember {
     /// Name of the data field
-    pub identifier:           String,
+    pub identifier: String,
     /// Type of the data field
-    pub data_type:            FieldType,
-    /// Index of the data field
-    pub index:                FieldIndex,
-    /// If the data type of the field is a user defined one, this will contain a copy of it's definition
-    pub user_definition_link: UserDefinitionLink,
+    pub data_type:  MemberType,
+    /// Index of the data field - Structs do not have a limit on indexes
+    pub index:      u64,
     /// Comment describing the data field
-    pub comment:              Option<String>
+    pub comment:    Option<String>
 }
 
 #[derive(Debug, Clone)]
-pub enum UserDefinitionLink {
-    NoLink,
-    // Clone value of the bitfield definition
-    BitfieldLink(BitfieldDefinition),
-    // Clone value of the enum definition
-    EnumLink(EnumDefinition),
-    // Clone value of the struct definition
-    StructLink(StructDefinition)
-}
-
-#[derive(Debug, Clone)]
-pub enum FieldIndex {
+pub enum MemberIndex {
     /// Used for regular fields
     Numeric(u64),
 
@@ -50,68 +39,19 @@ pub enum FieldIndex {
     Verifier
 }
 
-impl FieldIndex {
-    pub const LIMIT: u64 = 32;
-
-    pub fn value(&self) -> u64 {
-        match self {
-            FieldIndex::Numeric(value) => *value,
-            FieldIndex::Verifier => 0
-        }
-    }
-
-    pub fn is_verifier(&self) -> bool {
-        matches!(self, FieldIndex::Verifier)
-    }
-}
-
-impl PartialEq for FieldIndex {
-    fn eq(&self, other: &FieldIndex) -> bool {
-        self.value() == other.value()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Primitive {
-    // 1 byte primitives
-    Bool,
-    Char,
-    I8,
-    U8,
-
-    // 2 byte primitives
-    I16,
-    U16,
-
-    // 4 byte primitives
-    F32,
-    I32,
-    U32,
-
-    // 8 byte primitives
-    F64,
-    I64,
-    U64,
-
-    // 16 byte primitives (Not sendable as primitive)
-    I128,
-    U128
-}
-
 #[derive(Clone)]
-pub enum FieldType {
-    /// Used for skipped fields
-    Empty,
+pub enum MemberType {
+    Array(Array),
     Primitive(Primitive),
-    Array(ArrayType, ArraySize),
-    UserDefined(String)
+
+    /// If the data type of the field is a user defined one, then it will contain a copy of its definition
+    UserDefined(String, UserDefinitionLink)
 }
 
-impl Debug for FieldType {
-    fn fmt(&self, formatter: &mut Formatter) -> Result {
+impl Debug for MemberType {
+    fn fmt(&self, formatter: &mut Formatter) -> std::fmt::Result {
         match self {
-            FieldType::Empty => write!(formatter, "(empty)"),
-            FieldType::Primitive(primitive) => match primitive {
+            MemberType::Primitive(primitive) => match primitive {
                 Primitive::Bool => write!(formatter, "bool"),
                 Primitive::Char => write!(formatter, "char"),
                 Primitive::I8 => write!(formatter, "i8"),
@@ -127,40 +67,66 @@ impl Debug for FieldType {
                 Primitive::I128 => write!(formatter, "i128"),
                 Primitive::U128 => write!(formatter, "u128")
             },
-            FieldType::Array(array_type, array_size) => write!(formatter, "[{0:?}; {1}]", array_type, array_size),
-            FieldType::UserDefined(string) => write!(formatter, "{0}", string.clone())
+            MemberType::Array(array) => write!(formatter, "[{0:?}; {1}]", array.data_type, array.element_count),
+            MemberType::UserDefined(string, _) => write!(formatter, "{0}", string.clone())
         }
     }
 }
 
-impl Primitive {
-    pub fn is_signed(&self) -> bool {
-        matches!(
-            self,
-            Primitive::Char | Primitive::I8 | Primitive::I16 | Primitive::F32 | Primitive::I32 | Primitive::F64 | Primitive::I64 | Primitive::I128
-        )
-    }
-}
-
-impl PartialEq for FieldType {
-    fn eq(&self, other: &FieldType) -> bool {
+impl PartialEq for MemberType {
+    fn eq(&self, other: &MemberType) -> bool {
         match self {
-            FieldType::Empty => matches!(other, FieldType::Empty),
-
-            FieldType::Primitive(primitive) => match other {
-                FieldType::Primitive(other_primitive) => primitive == other_primitive,
+            MemberType::Primitive(primitive) => match other {
+                MemberType::Primitive(other_primitive) => primitive == other_primitive,
                 _ => false
             },
 
-            FieldType::Array(array_type, array_size) => match other {
-                FieldType::Array(other_type, other_size) => (array_type == other_type) && (array_size == other_size),
+            MemberType::Array(array) => match other {
+                MemberType::Array(other_array) => array == other_array,
                 _ => false
             },
 
-            FieldType::UserDefined(string) => match other {
-                FieldType::UserDefined(other_string) => string == other_string,
+            MemberType::UserDefined(string, _) => match other {
+                MemberType::UserDefined(other_string, _) => string == other_string,
                 _ => false
             }
         }
+    }
+}
+
+impl StructDefinition {
+    /// Size of struct when all members are flattened into a long data blob with no padding
+    pub fn flat_size(&self) -> Result<u64, RuneParserError> {
+        let mut total_size: u64 = 0;
+
+        for member in &self.members {
+            let member_size: u64 = match &member.data_type {
+                MemberType::Array(array) => array.byte_size()?,
+                MemberType::Primitive(primitive) => primitive.encoded_max_data_size(),
+                MemberType::UserDefined(type_identifier, definition_link) => match &definition_link {
+                    UserDefinitionLink::NoLink => {
+                        error!(
+                            "No definition for member {0} of type {1} in struct {2}! This should not happen!",
+                            member.identifier, type_identifier, self.name
+                        );
+                        return Err(RuneParserError::UndefinedIdentifier);
+                    },
+                    UserDefinitionLink::BitfieldLink(bitfield_definition) => bitfield_definition.backing_type.encoded_max_data_size(),
+                    UserDefinitionLink::EnumLink(enum_definition) => enum_definition.backing_type.encoded_max_data_size(),
+                    UserDefinitionLink::MessageLink(message_link) => {
+                        error!(
+                            "Structs cannot contain message members! Member {0} of struct {1} contained message {2}",
+                            member.identifier, self.name, message_link.name
+                        );
+                        return Err(RuneParserError::InvalidStructMemberType);
+                    },
+                    UserDefinitionLink::StructLink(struct_definition) => struct_definition.flat_size()?
+                }
+            };
+
+            total_size += member_size;
+        }
+
+        Ok(total_size)
     }
 }

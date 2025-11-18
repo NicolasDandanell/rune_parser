@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use crate::{
     output::is_silent,
     scanner::NumericLiteral,
@@ -8,19 +6,6 @@ use crate::{
 };
 
 impl Primitive {
-    // Single Byte
-    const BYTE_RANGE: Range<i64> = (i8::MIN as i64)..(i8::MAX as i64);
-    const UBYTE_RANGE: Range<u64> = (u8::MIN as u64)..(u8::MAX as u64);
-
-    // Two Bytes
-    const SHORT_RANGE: Range<i64> = (i16::MIN as i64)..(i16::MAX as i64);
-    const USHORT_RANGE: Range<u64> = (u16::MIN as u64)..(u16::MAX as u64);
-
-    // Four Bytes
-    const FLOAT_RANGE: Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);
-    const INT_RANGE: Range<i64> = (i32::MIN as i64)..(i32::MAX as i64);
-    const UINT_RANGE: Range<u64> = (u32::MIN as u64)..(u32::MAX as u64);
-
     pub fn can_back_bitfield(&self) -> bool {
         match self {
             Primitive::Char | Primitive::I8 | Primitive::U8 | Primitive::I16 | Primitive::U16 | Primitive::I32 | Primitive::U32 | Primitive::I64 | Primitive::U64 => true,
@@ -83,12 +68,12 @@ impl Primitive {
 
             Primitive::Char | Primitive::I8 => match value {
                 NumericLiteral::PositiveInteger(value, _) => *value <= i8::MAX as u64,
-                NumericLiteral::NegativeInteger(value, _) => Primitive::BYTE_RANGE.contains(value),
+                NumericLiteral::NegativeInteger(value, _) => Primitive::I8_RANGE.contains(value),
                 _ => false
             },
 
             Primitive::U8 => match value {
-                NumericLiteral::PositiveInteger(value, _) => Primitive::UBYTE_RANGE.contains(value),
+                NumericLiteral::PositiveInteger(value, _) => Primitive::U8_RANGE.contains(value),
                 _ => false
             },
 
@@ -97,28 +82,28 @@ impl Primitive {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value <= i16::MAX as u64,
                 // Negatives
-                NumericLiteral::NegativeInteger(value, _) => Primitive::SHORT_RANGE.contains(value),
+                NumericLiteral::NegativeInteger(value, _) => Primitive::I16_RANGE.contains(value),
                 _ => false
             },
             Primitive::U16 => match value {
-                NumericLiteral::PositiveInteger(value, _) => Primitive::USHORT_RANGE.contains(value),
+                NumericLiteral::PositiveInteger(value, _) => Primitive::U16_RANGE.contains(value),
                 _ => false
             },
 
             // Four Bytes
             Primitive::F32 => match value {
-                NumericLiteral::Float(float) => Primitive::FLOAT_RANGE.contains(float),
+                NumericLiteral::Float(float) => Primitive::F32_RANGE.contains(float),
                 _ => false
             },
             Primitive::I32 => match value {
                 // Positives
                 NumericLiteral::PositiveInteger(value, _) => *value <= i32::MAX as u64,
                 // Negatives
-                NumericLiteral::NegativeInteger(value, _) => Primitive::INT_RANGE.contains(value),
+                NumericLiteral::NegativeInteger(value, _) => Primitive::I32_RANGE.contains(value),
                 _ => false
             },
             Primitive::U32 => match value {
-                NumericLiteral::PositiveInteger(value, _) => Primitive::UINT_RANGE.contains(value),
+                NumericLiteral::PositiveInteger(value, _) => Primitive::U32_RANGE.contains(value),
                 _ => false
             },
 
@@ -154,6 +139,9 @@ pub fn validate_parsed_files(files: &Vec<RuneFileDescription>) -> Result<(), Run
 
     // Validate enums
     validate_enums(files)?;
+
+    // Validate messages
+    validate_messages(files)?;
 
     // Validate structs
     validate_structs(files)?;
@@ -325,50 +313,50 @@ pub fn validate_enums(files: &Vec<RuneFileDescription>) -> Result<(), RuneParser
 // ——————————————————
 
 /// Check that two fields do not have the same field index or identifier
-pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
+pub fn validate_messages(files: &Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
     // Check all files for struct definitions
     for file in files {
-        for struct_definition in &file.definitions.structs {
+        for message_definition in &file.definitions.messages {
             // Check whether a verification field has been declared
-            let has_verifier: bool = match struct_definition.members.iter().filter(|&x| x.index.is_verifier()).count() {
+            let has_verifier: bool = match message_definition.fields.iter().filter(|&x| x.index.is_verifier()).count() {
                 0 => false,
                 1 => true,
                 _ => {
-                    error!("Error at {0}: Cannot have more than one verifier field per struct!", struct_definition.name);
+                    error!("Error at {0}: Cannot have more than one verifier field per struct!", message_definition.name);
                     return Err(RuneParserError::IndexCollision);
                 }
             };
 
             // Check all identifiers for collisions
-            for member in &struct_definition.members {
-                let index: FieldIndex = member.index.clone();
-                let identifier: String = member.identifier.clone();
+            for field in &message_definition.fields {
+                let index: FieldIndex = field.index.clone();
+                let identifier: String = field.identifier.clone();
 
                 // Check field index
                 // ——————————————————
 
-                let index_count = struct_definition.members.iter().filter(|&member| member.index.value() == index.value()).count();
+                let index_count = message_definition.fields.iter().filter(|&member| member.index.value() == index.value()).count();
 
                 if index_count > 1 {
                     if index.value() == 0 && has_verifier {
                         error!(
                             "Error at {0}: Cannot have a verifier field and a field with index 0! This is due to verifier being an alias for index 0",
-                            struct_definition.name
+                            message_definition.name
                         );
                     } else {
                         error!(
                             "Error at {0}: Cannot have multiple fields with the same index! Found multiple instances of index: {1}",
-                            struct_definition.name,
+                            message_definition.name,
                             index.value()
                         );
                     }
                     return Err(RuneParserError::IndexCollision);
                 }
 
-                if struct_definition.reserved_indexes.contains(&index) {
+                if message_definition.reserved_indexes.contains(&index) {
                     error!(
                         "Error at {0}: Field {1} was declared with index {2} is declared even though field index {2} is reserved",
-                        struct_definition.name,
+                        message_definition.name,
                         identifier,
                         index.value()
                     );
@@ -378,10 +366,52 @@ pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RunePars
                 // Check field identifier
                 // ———————————————————————
 
+                let identifier_count = message_definition.fields.iter().filter(|&member| member.identifier == identifier).count();
+
+                if identifier_count > 1 {
+                    error!("Error at {0}: Found multiple definitions of identifier {1} in message fields", message_definition.name, identifier);
+                    return Err(RuneParserError::IdentifierCollision);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// Struct validation
+// ——————————————————
+
+/// Check that two fields do not have the same field index or identifier
+pub fn validate_structs(files: &Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
+    // Check all files for struct definitions
+    for file in files {
+        for struct_definition in &file.definitions.structs {
+            for member in &struct_definition.members {
+                let index: u64 = member.index;
+                let identifier: String = member.identifier.clone();
+
+                // Check field index
+                // ——————————————————
+
+                let index_count = struct_definition.members.iter().filter(|&member| member.index == index).count();
+
+                if index_count > 1 {
+                    error!(
+                        "Error at {0}: Cannot have multiple fields with the same index! Found multiple instances of index: {1}",
+                        struct_definition.name, index
+                    );
+
+                    return Err(RuneParserError::IndexCollision);
+                }
+
+                // Check field identifier
+                // ———————————————————————
+
                 let identifier_count = struct_definition.members.iter().filter(|&member| member.identifier == identifier).count();
 
                 if identifier_count > 1 {
-                    error!("Error at {0}: Found multiple definitions of identifier {1} in member fields", struct_definition.name, identifier);
+                    error!("Error at {0}: Found multiple definitions of identifier {1} in struct members", struct_definition.name, identifier);
                     return Err(RuneParserError::IdentifierCollision);
                 }
             }

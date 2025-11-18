@@ -1,8 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::{
+    output::*,
     scanner::{NumeralSystem, NumericLiteral},
-    types::{structs::Primitive, DefineDefinition, DefineValue}
+    types::{DefineDefinition, DefineValue, Primitive, UserDefinitionLink},
+    RuneParserError
 };
 
 #[derive(Clone, Debug)]
@@ -17,7 +19,13 @@ pub enum ArraySize {
 #[derive(Clone, Debug)]
 pub enum ArrayType {
     Primitive(Primitive),
-    UserDefined(String)
+    UserDefined(String, UserDefinitionLink)
+}
+
+#[derive(Clone, Debug)]
+pub struct Array {
+    pub data_type:     ArrayType,
+    pub element_count: ArraySize
 }
 
 impl ArraySize {
@@ -45,6 +53,23 @@ impl ArraySize {
 
                         _ => unreachable!("Only positive integer numbers can be indexes")
                     }
+                }
+            }
+        }
+    }
+
+    pub fn value(&self) -> Result<u64, RuneParserError> {
+        match self {
+            ArraySize::Integer(value, _) => Ok(*value),
+            ArraySize::UserDefinition(definition) => {
+                let define_value = match &definition.redefinition {
+                    None => &definition.value,
+                    Some(redefinition) => &redefinition.value
+                };
+
+                match define_value {
+                    DefineValue::NumericLiteral(NumericLiteral::PositiveInteger(value, _)) => Ok(*value),
+                    _ => Err(RuneParserError::InvalidArraySize)
                 }
             }
         }
@@ -80,6 +105,27 @@ impl PartialEq for ArraySize {
     }
 }
 
+impl ArrayType {
+    pub fn size(&self) -> Result<u64, RuneParserError> {
+        match self {
+            ArrayType::Primitive(primitive) => Ok(primitive.encoded_max_data_size()),
+            ArrayType::UserDefined(_, definition_link) => match &definition_link {
+                UserDefinitionLink::NoLink => {
+                    error!("User defined array type had no link!");
+                    Err(RuneParserError::UndefinedIdentifier)
+                },
+                UserDefinitionLink::EnumLink(enum_link) => Ok(enum_link.backing_type.encoded_max_data_size()),
+                UserDefinitionLink::BitfieldLink(bitfield_link) => Ok(bitfield_link.backing_type.encoded_max_data_size()),
+                UserDefinitionLink::MessageLink(_) => {
+                    error!("Cannot have message array");
+                    Err(RuneParserError::InvalidArrayType)
+                },
+                UserDefinitionLink::StructLink(struct_link) => Ok(struct_link.flat_size()?)
+            }
+        }
+    }
+}
+
 impl PartialEq for ArrayType {
     fn eq(&self, other: &ArrayType) -> bool {
         match self {
@@ -87,10 +133,22 @@ impl PartialEq for ArrayType {
                 ArrayType::Primitive(other_primitive) => primitive == other_primitive,
                 _ => false
             },
-            ArrayType::UserDefined(definition) => match other {
-                ArrayType::UserDefined(other_definition) => definition == other_definition,
+            ArrayType::UserDefined(definition, _) => match other {
+                ArrayType::UserDefined(other_definition, _) => definition == other_definition,
                 _ => false
             }
         }
+    }
+}
+
+impl PartialEq for Array {
+    fn eq(&self, other: &Array) -> bool {
+        (self.data_type == other.data_type) && (self.element_count == other.element_count)
+    }
+}
+
+impl Array {
+    pub fn byte_size(&self) -> Result<u64, RuneParserError> {
+        Ok(self.data_type.size()? * self.element_count.value()?)
     }
 }
