@@ -98,6 +98,18 @@ fn find_data_definition(identifier: &String, definitions: &Vec<RuneFileDescripti
                 return Ok(UserDefinitionLink::StructLink(definition_copy.clone()));
             }
         }
+
+        // Check messages in case a message type was used in an illegal way
+        for message_definition in &file.definitions.messages {
+            // Check if message matches the identifier
+            if identifier == message_definition.name.as_str() {
+                error!(
+                    "Found a use of message type {0} being used somewhere else than a message! Messages cannot be used as array types, or as struct members!",
+                    identifier
+                );
+                return Err(RuneParserError::InvalidTypeUse);
+            }
+        }
     }
 
     error!("Found no user definition for identifier '{0}'!", identifier);
@@ -127,6 +139,5 @@ fn find_field_definition(identifier: &String, definitions: &Vec<RuneFileDescript
         }
     }
 
-    error!("Found no user definition for identifier '{0}'!", identifier);
-    Err(RuneParserError::UndefinedIdentifier)
+    find_data_definition(identifier, definitions)
 }

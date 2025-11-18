@@ -200,13 +200,16 @@ impl MessageDefinition {
             }
         }
 
-        for i in 0..largest_index {
+        // Encoding as a large array (header + 4 byte size) is the one with the largest overhead, and thus the worst case
+        const WORST_CASE_ENCODING: u64 = 5;
+
+        for i in 0..(largest_index + 1) {
             let mut found_field: bool = false;
 
             for field in &self.fields {
                 if field.index.value() == i {
                     total_size += match field.full_encoded_size(true)? {
-                        Some(value) => value,
+                        Some(value) => WORST_CASE_ENCODING + value,
                         // Field was a sub-message with a skipped field, and we thus cannot calculate a worst case size
                         None => return Ok(None)
                     };

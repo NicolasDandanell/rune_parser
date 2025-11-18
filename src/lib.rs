@@ -46,7 +46,8 @@ pub enum RuneParserError {
     MultipleDefinitions,
     MultipleRedefinitions,
     InvalidNumericValue,
-    EmptyMessageField
+    EmptyMessageField,
+    InvalidTypeUse
 }
 
 struct RuneFile {
