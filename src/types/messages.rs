@@ -144,8 +144,8 @@ fn optimal_encoded_data_size(size: &u64) -> Result<u64, RuneParserError> {
 }
 
 impl MessageField {
-    /// Gives the full encoded data size of the field. If it's a message, then the flag will determine whether optimal encoding is used, or worst case encoding
-    pub fn full_encoded_size(&self, worst_case: bool) -> Result<Option<u64>, RuneParserError> {
+    /// Gives the full encoded data size of the field. If it's a message, then the flag will determine whether optimal encoding is used, or pessimal (most inefficient) encoding
+    pub fn full_encoded_size(&self, pessimal: bool) -> Result<Option<u64>, RuneParserError> {
         match &self.data_type {
             FieldType::Array(array) => Ok(Some(array.byte_size()?)),
             FieldType::Empty => Ok(Some(0)),
@@ -157,9 +157,9 @@ impl MessageField {
                 },
                 UserDefinitionLink::BitfieldLink(bitfield_definition) => Ok(Some(bitfield_definition.backing_type.encoded_max_data_size())),
                 UserDefinitionLink::EnumLink(enum_definition) => Ok(Some(enum_definition.backing_type.encoded_max_data_size())),
-                UserDefinitionLink::MessageLink(message_link) => match worst_case {
+                UserDefinitionLink::MessageLink(message_link) => match pessimal {
                     false => Ok(Some(message_link.optimal_full_encoded_size()?)),
-                    true => message_link.worst_case_encoded_size()
+                    true => message_link.pessimal_encoded_size()
                 },
                 UserDefinitionLink::StructLink(struct_definition) => Ok(Some(struct_definition.flat_size()?))
             }
@@ -174,7 +174,7 @@ impl MessageDefinition {
 
         for field in &self.fields {
             match field.full_encoded_size(false) {
-                // Not setting the worst_case flag will mean optimal_encoded_data_size() never returns None, and we can thus safely unwrap the value
+                // Not setting the pessimal flag will mean optimal_encoded_data_size() never returns None, and we can thus safely unwrap the value
                 Ok(value) => total_size += optimal_encoded_data_size(&value.unwrap())?,
                 Err(error) => {
                     error!("Could not get encoded size of field {0} of message {1}. Got error {2:?}", field.identifier, self.name, error);
@@ -188,7 +188,7 @@ impl MessageDefinition {
 
     /// If there are no skipped field indexes, then this gives the largest possible encoding of the present fields will full data. Used for allocation of buffers in worst case scenarios where another implementation might not use the most efficient encoding.
     /// This returns nothing in case there are skipped fields, as there is no way of knowing if they might be sent, and how big they are
-    pub fn worst_case_encoded_size(&self) -> Result<Option<u64>, RuneParserError> {
+    pub fn pessimal_encoded_size(&self) -> Result<Option<u64>, RuneParserError> {
         let mut total_size: u64 = 0;
 
         let mut largest_index: u64 = 0;
@@ -201,7 +201,7 @@ impl MessageDefinition {
         }
 
         // Encoding as a large array (header + 4 byte size) is the one with the largest overhead, and thus the worst case
-        const WORST_CASE_ENCODING: u64 = 5;
+        const PESSIMAL_ENCODING: u64 = 5;
 
         for i in 0..(largest_index + 1) {
             let mut found_field: bool = false;
@@ -209,7 +209,7 @@ impl MessageDefinition {
             for field in &self.fields {
                 if field.index.value() == i {
                     total_size += match field.full_encoded_size(true)? {
-                        Some(value) => WORST_CASE_ENCODING + value,
+                        Some(value) => PESSIMAL_ENCODING + value,
                         // Field was a sub-message with a skipped field, and we thus cannot calculate a worst case size
                         None => return Ok(None)
                     };
