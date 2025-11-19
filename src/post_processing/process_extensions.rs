@@ -1,7 +1,6 @@
 use crate::{
     output::*,
-    scanner::NumericLiteral,
-    types::{ArraySize, BitfieldDefinition, DefineDefinition, DefineValue, EnumDefinition, FieldType, IncludeDefinition, RedefineDefinition, StructDefinition, UserDefinitionLink},
+    types::{BitfieldDefinition, EnumDefinition, IncludeDefinition, MessageDefinition, StructDefinition},
     RuneFileDescription, RuneParserError
 };
 
@@ -15,6 +14,7 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
 
     let mut bitfield_extensions: Vec<BitfieldExtension> = Vec::with_capacity(VEC_SIZE);
     let mut enum_extensions: Vec<EnumExtension> = Vec::with_capacity(VEC_SIZE);
+    let mut message_extensions: Vec<MessageExtension> = Vec::with_capacity(VEC_SIZE);
     let mut struct_extensions: Vec<StructExtension> = Vec::with_capacity(VEC_SIZE);
 
     for file in &mut *definitions {
@@ -42,6 +42,18 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                 };
 
                 enum_extensions.push(extension);
+            }
+
+            // Add all message extensions, as well as which file they came from
+            for message_extension in &file.definitions.extensions.messages {
+                info!("    Found extension to {0} in file {1}.rune", message_extension.name, file.name);
+
+                let extension: MessageExtension = MessageExtension {
+                    files:      Vec::from([file.name.clone()]),
+                    definition: message_extension.clone()
+                };
+
+                message_extensions.push(extension);
             }
 
             // Add all struct extensions, as well as which file they came from
@@ -159,6 +171,46 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
         }
     }
 
+    // Check Messages
+    if message_extensions.len() > 1 {
+        let mut i: usize = 0;
+        let mut list_size: usize = message_extensions.len();
+
+        while i < list_size - 1 {
+            let mut z = i + 1;
+            while z < list_size {
+                // Merge extensions of the same message if there is no collision between them
+                if message_extensions[i].definition.name == message_extensions[z].definition.name {
+                    // Check every field of 'z' for duplicates in 'i'
+                    for z_field in &message_extensions[z].definition.fields {
+                        for i_field in &message_extensions[i].definition.fields {
+                            if z_field.identifier == i_field.identifier {
+                                error!("Collision between two {0} extensions at index {1}", message_extensions[i].definition.name, z_field.identifier);
+                                return Err(RuneParserError::IndexCollision);
+                            }
+                        }
+                    }
+
+                    // Copy all origin files of 'z' to 'i'
+                    let mut z_files_copy = struct_extensions[z].files.clone();
+                    struct_extensions[i].files.append(&mut z_files_copy);
+
+                    // Copy all fields of 'z' to 'i'
+                    let mut z_field_list_copy = struct_extensions[z].definition.members.clone();
+                    struct_extensions[i].definition.members.append(&mut z_field_list_copy);
+
+                    // Remove index 'z' from list
+                    struct_extensions.swap_remove(z);
+
+                    list_size -= 1;
+                } else {
+                    z += 1;
+                }
+            }
+            i += 1;
+        }
+    }
+
     // Check Structs
     if struct_extensions.len() > 1 {
         let mut i: usize = 0;
@@ -173,22 +225,22 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                     for z_member in &struct_extensions[z].definition.members {
                         for i_member in &struct_extensions[i].definition.members {
                             if z_member.identifier == i_member.identifier {
-                                error!("Collision between two {0} extensions at index {1}", struct_extensions[i].definition.name, z_member.identifier);
+                                error!("Collision between two {0} extensions at index {1}", message_extensions[i].definition.name, z_member.identifier);
                                 return Err(RuneParserError::IndexCollision);
                             }
                         }
                     }
 
                     // Copy all origin files of 'z' to 'i'
-                    let mut z_files_copy = struct_extensions[z].files.clone();
-                    struct_extensions[i].files.append(&mut z_files_copy);
+                    let mut z_files_copy = message_extensions[z].files.clone();
+                    message_extensions[i].files.append(&mut z_files_copy);
 
                     // Copy all members of 'z' to 'i'
-                    let mut z_member_list_copy = struct_extensions[z].definition.members.clone();
-                    struct_extensions[i].definition.members.append(&mut z_member_list_copy);
+                    let mut z_member_list_copy = message_extensions[z].definition.fields.clone();
+                    message_extensions[i].definition.fields.append(&mut z_member_list_copy);
 
                     // Remove index 'z' from list
-                    struct_extensions.swap_remove(z);
+                    message_extensions.swap_remove(z);
 
                     list_size -= 1;
                 } else {
@@ -283,6 +335,37 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
             }
         }
 
+        // Append Messages
+        for extension in message_extensions {
+            // Find original definition
+            for file in &mut *definitions {
+                for message_definition in &mut file.definitions.messages {
+                    if message_definition.name == extension.definition.name {
+                        // Check for collisions
+                        for extension_field in &extension.definition.fields {
+                            for definition_field in &message_definition.fields {
+                                if extension_field.identifier == definition_field.identifier {
+                                    error!(
+                                        "Collision between original {0} definition and extension at index {1}",
+                                        message_definition.name, definition_field.identifier
+                                    );
+                                    return Err(RuneParserError::IndexCollision);
+                                }
+                            }
+                        }
+
+                        // Add extension to definition
+                        message_definition.fields.append(&mut extension.definition.fields.clone());
+
+                        // Add files as inclusions
+                        for include_file in &extension.files {
+                            file.definitions.includes.push(IncludeDefinition { file: include_file.clone() });
+                        }
+                    }
+                }
+            }
+        }
+
         // Append Structs
         for extension in struct_extensions {
             // Find original definition
@@ -290,12 +373,12 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
                 for struct_definition in &mut file.definitions.structs {
                     if struct_definition.name == extension.definition.name {
                         // Check for collisions
-                        for extension_member in &extension.definition.members {
-                            for definition_member in &struct_definition.members {
-                                if extension_member.identifier == definition_member.identifier {
+                        for extension_field in &extension.definition.members {
+                            for definition_field in &struct_definition.members {
+                                if extension_field.identifier == definition_field.identifier {
                                     error!(
                                         "Collision between original {0} definition and extension at index {1}",
-                                        struct_definition.name, definition_member.identifier
+                                        struct_definition.name, definition_field.identifier
                                     );
                                     return Err(RuneParserError::IndexCollision);
                                 }
@@ -318,180 +401,6 @@ pub fn parse_extensions(definitions: &mut Vec<RuneFileDescription>, append_defin
     Ok(())
 }
 
-pub fn parse_define_statements(definitions: &mut Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
-    info!("Parsing define statements");
-
-    let mut defines_list: Vec<DefineDefinition> = Vec::with_capacity(VEC_SIZE);
-    let mut redefines_list: Vec<RedefineDefinition> = Vec::with_capacity(VEC_SIZE);
-
-    // Create a list of all user defines found across all files
-    for file in definitions.clone() {
-        for definition in &file.definitions.defines {
-            defines_list.push(definition.clone());
-        }
-
-        for redefinition in &file.definitions.redefines {
-            redefines_list.push(redefinition.clone());
-        }
-    }
-
-    // Check for duplicates
-    // —————————————————————
-
-    // Check for multiple definitions of the same define. Only necessary if more than one item in the list
-    if defines_list.len() > 1 {
-        for i in 0..(defines_list.len() - 1) {
-            for definition in &defines_list[(i + 1)..] {
-                if defines_list[i].name == definition.name {
-                    error!("Found duplicate definition of {0}. Aborting parsing.", defines_list[i].name);
-                    return Err(RuneParserError::MultipleDefinitions);
-                }
-            }
-        }
-    }
-
-    // Check for multiple definitions of the same redefine. Only necessary if more than one item in the list
-    if redefines_list.len() > 1 {
-        for i in 0..(redefines_list.len() - 1) {
-            for redefinition in &redefines_list[(i + 1)..] {
-                if redefines_list[i].name == redefinition.name {
-                    error!("Multiple redefinitions of {0}! Only a single redefinition of a define is supported.", redefines_list[i].name);
-                    return Err(RuneParserError::MultipleRedefinitions);
-                }
-            }
-        }
-    }
-
-    // Process files
-    // ——————————————
-
-    for file in definitions {
-        // Find all definitions in the file, and check to see if there is any redefinition for it
-        for define_definition in &mut file.definitions.defines {
-            for i in 0..redefines_list.len() {
-                // Check to see if names match
-                if define_definition.name == redefines_list[i].name {
-                    // Add redefinition to the define
-                    define_definition.redefinition = Some(redefines_list[i].clone());
-
-                    // Remove from redefines_list so we can check for orphan redefinitions after processing al files
-                    redefines_list.swap_remove(i);
-                }
-            }
-        }
-
-        // So far, array sizes are the only valid place to use define values inside Rune itself
-        // Check all struct fields for array members, and check if their size is defined by a UserDefinition
-        for struct_definition in &mut file.definitions.structs {
-            // Check all struct members
-            for member in &mut struct_definition.members {
-                // Check if field type is array
-                if let FieldType::Array(_, ArraySize::UserDefinition(definition)) = &mut member.data_type {
-                    // Find define value
-                    for user_define in &defines_list {
-                        // Match with identifier string
-                        if user_define.name == definition.name {
-                            // Check for redefinition
-                            let define_value: &DefineValue = match &user_define.redefinition {
-                                None => &user_define.value,
-                                Some(redefine) => &redefine.value
-                            };
-
-                            // Parse the value. Only integer values are valid
-                            match define_value {
-                                DefineValue::NumericLiteral(value) => match value {
-                                    NumericLiteral::PositiveInteger(_, _) => definition.value = DefineValue::NumericLiteral(value.clone()),
-                                    _ => {
-                                        error!("Could not parse {0} into a valid positive integer value!", definition.name);
-                                        return Err(RuneParserError::InvalidNumericValue);
-                                    }
-                                },
-                                _ => {
-                                    error!("Could not parse {0} into a valid positive integer value!", definition.name);
-                                    return Err(RuneParserError::InvalidNumericValue);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    for orphan_redefinition in redefines_list {
-        warning!("Define statement for redefinition {0} not found, so it will thus be ignored and do nothing.", orphan_redefinition.name);
-    }
-
-    Ok(())
-}
-
-pub fn link_user_definitions(definitions: &mut Vec<RuneFileDescription>) -> Result<(), RuneParserError> {
-    info!("Linking user definitions");
-
-    let immutable_reference = definitions.clone();
-
-    // Find every struct member with the type UserDefinition, and add a link to its name and link to the list
-    for file in definitions {
-        // Check all structs
-        for struct_definition in &mut file.definitions.structs {
-            // Check all struct members
-            for member in &mut struct_definition.members {
-                // Check if struct member is user defined
-                if let FieldType::UserDefined(name) = &member.data_type {
-                    member.user_definition_link = find_definition(name, &immutable_reference)?;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn find_definition(identifier: &String, definitions: &Vec<RuneFileDescription>) -> Result<UserDefinitionLink, RuneParserError> {
-    // Then find the struct or enum with the corresponding name, and link to it
-
-    for file in definitions {
-        // Check if a bitfield's name matches the identifier
-        for bitfield_definition in &file.definitions.bitfields {
-            // Check if bitfield matches the identifier
-            if identifier == bitfield_definition.name.as_str() {
-                return Ok(UserDefinitionLink::BitfieldLink(bitfield_definition.clone()));
-            }
-        }
-
-        // Check if an enum's name matches the identifier
-        for enum_definition in &file.definitions.enums {
-            // Check if enum matches the identifier
-            if identifier == enum_definition.name.as_str() {
-                return Ok(UserDefinitionLink::EnumLink(enum_definition.clone()));
-            }
-        }
-
-        // Check if a structs's name matches the identifier
-        for struct_definition in &file.definitions.structs {
-            // Check if struct matches the identifier
-            if identifier == struct_definition.name.as_str() {
-                // !!! Using defines as array sizes might also require work here !!!
-
-                let mut definition_copy = struct_definition.clone();
-
-                // Call recursively if struct found contains user defined members
-                for member in &mut definition_copy.members {
-                    if let FieldType::UserDefined(name) = &member.data_type {
-                        // Since we return a copy, we can easily modify the definition_copy without issue
-                        member.user_definition_link = find_definition(name, definitions)?;
-                    }
-                }
-
-                return Ok(UserDefinitionLink::StructLink(definition_copy.clone()));
-            }
-        }
-    }
-
-    error!("Found no user definition for identifier '{0}'!", identifier);
-    Err(RuneParserError::UndefinedIdentifier)
-}
-
 // Utility Structs
 // ————————————————
 
@@ -503,6 +412,11 @@ struct BitfieldExtension {
 struct EnumExtension {
     files:      Vec<String>,
     definition: EnumDefinition
+}
+
+struct MessageExtension {
+    files:      Vec<String>,
+    definition: MessageDefinition
 }
 
 struct StructExtension {

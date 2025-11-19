@@ -12,7 +12,9 @@ use output::{enable_silent, is_silent};
 use parser::parse_tokens;
 use post_processing::{link_user_definitions, parse_define_statements, parse_extensions};
 use scanner::Scanner;
+pub use scanner::{NumeralSystem, NumericLiteral};
 use types::Definitions;
+pub use types::{ArraySize, ArrayType};
 use validation::validate_parsed_files;
 
 const ALLOCATION_SIZE: usize = 0x40;
@@ -34,12 +36,18 @@ pub enum RuneParserError {
     NameCollision,
     ValueCollision,
     InvalidTotalBitfieldSize,
+    InvalidEncodedSize,
+    InvalidArrayType,
+    InvalidArraySize,
+    InvalidStructMemberType,
     UseOfReservedIndex,
     ExtensionMismatch,
     UndefinedIdentifier,
     MultipleDefinitions,
     MultipleRedefinitions,
-    InvalidNumericValue
+    InvalidNumericValue,
+    EmptyMessageField,
+    InvalidTypeUse
 }
 
 struct RuneFile {

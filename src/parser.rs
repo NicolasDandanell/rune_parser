@@ -270,13 +270,13 @@ pub trait TokenSource: std::clone::Clone {
                 "u64" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U64), token.from, token.to)),
                 "i128" => Ok(Spanned::new(ArrayType::Primitive(Primitive::I128), token.from, token.to)),
                 "u128" => Ok(Spanned::new(ArrayType::Primitive(Primitive::U128), token.from, token.to)),
-                _ => Ok(Spanned::new(ArrayType::UserDefined(string.clone()), token.from, token.to))
+                _ => Ok(Spanned::new(ArrayType::UserDefined(string.clone(), UserDefinitionLink::NoLink), token.from, token.to))
             },
             _ => Err(ParsingError::UnexpectedToken(token))
         }
     }
 
-    fn expect_type(&mut self) -> ParsingResult<Spanned<FieldType>> {
+    fn expect_field_type(&mut self) -> ParsingResult<Spanned<FieldType>> {
         let token = self.expect_next()?;
         match token.item {
             Token::Identifier(string) => Ok(Spanned::new(
@@ -295,18 +295,18 @@ pub trait TokenSource: std::clone::Clone {
                     "u64" => FieldType::Primitive(Primitive::U64),
                     "i128" => FieldType::Primitive(Primitive::I128),
                     "u128" => FieldType::Primitive(Primitive::U128),
-                    _ => FieldType::UserDefined(string)
+                    _ => FieldType::UserDefined(string, UserDefinitionLink::NoLink)
                 },
                 token.from,
                 token.to
             )),
 
             Token::LeftBracket => {
-                let array_type = self.expect_array_type()?;
+                let data_type = self.expect_array_type()?.item;
                 self.expect_token(Token::SemiColon)?;
                 let count_token = self.expect_next()?;
 
-                let count = match &count_token.item {
+                let element_count = match &count_token.item {
                     // Simple integer or hex value will generate a simple number
                     Token::NumericLiteral(NumericLiteral::PositiveInteger(value, numeral_system)) => ArraySize::Integer(*value, *numeral_system),
 
@@ -322,7 +322,60 @@ pub trait TokenSource: std::clone::Clone {
 
                 let right_bracket = self.expect_token(Token::RightBracket)?;
 
-                Ok(Spanned::new(FieldType::Array(array_type.item, count), token.from, right_bracket.to))
+                Ok(Spanned::new(FieldType::Array(Array { data_type, element_count }), token.from, right_bracket.to))
+            },
+
+            _ => Err(ParsingError::UnexpectedToken(token))
+        }
+    }
+
+    fn expect_member_type(&mut self) -> ParsingResult<Spanned<MemberType>> {
+        let token = self.expect_next()?;
+        match token.item {
+            Token::Identifier(string) => Ok(Spanned::new(
+                match string.as_str() {
+                    "bool" => MemberType::Primitive(Primitive::Bool),
+                    "char" => MemberType::Primitive(Primitive::Char),
+                    "i8" => MemberType::Primitive(Primitive::I8),
+                    "u8" => MemberType::Primitive(Primitive::U8),
+                    "i16" => MemberType::Primitive(Primitive::I16),
+                    "u16" => MemberType::Primitive(Primitive::U16),
+                    "f32" => MemberType::Primitive(Primitive::F32),
+                    "i32" => MemberType::Primitive(Primitive::I32),
+                    "u32" => MemberType::Primitive(Primitive::U32),
+                    "f64" => MemberType::Primitive(Primitive::F64),
+                    "i64" => MemberType::Primitive(Primitive::I64),
+                    "u64" => MemberType::Primitive(Primitive::U64),
+                    "i128" => MemberType::Primitive(Primitive::I128),
+                    "u128" => MemberType::Primitive(Primitive::U128),
+                    _ => MemberType::UserDefined(string, UserDefinitionLink::NoLink)
+                },
+                token.from,
+                token.to
+            )),
+
+            Token::LeftBracket => {
+                let data_type = self.expect_array_type()?.item;
+                self.expect_token(Token::SemiColon)?;
+                let count_token = self.expect_next()?;
+
+                let element_count = match &count_token.item {
+                    // Simple integer or hex value will generate a simple number
+                    Token::NumericLiteral(NumericLiteral::PositiveInteger(value, numeral_system)) => ArraySize::Integer(*value, *numeral_system),
+
+                    // String will generate a user definition, which will be populated with a value in post processing
+                    Token::Identifier(string) => ArraySize::UserDefinition(DefineDefinition {
+                        name:         string.clone(),
+                        value:        DefineValue::NoValue,
+                        comment:      None,
+                        redefinition: None
+                    }),
+                    _ => return Err(ParsingError::UnexpectedToken(count_token))
+                };
+
+                let right_bracket = self.expect_token(Token::RightBracket)?;
+
+                Ok(Spanned::new(MemberType::Array(Array { data_type, element_count }), token.from, right_bracket.to))
             },
 
             _ => Err(ParsingError::UnexpectedToken(token))
@@ -399,7 +452,7 @@ fn parse_bitfield(tokens: &mut impl TokenSource, last_comment: &mut Option<Strin
         let peeked_token = match tokens.peek() {
             Some(token) => token.clone(),
             None => {
-                error!("Sudden end of file in the middle of a struct!");
+                error!("Sudden end of file in the middle of a bitfield!");
                 return Err(ParsingError::UnexpectedEndOfInput);
             }
         };
@@ -561,7 +614,7 @@ fn parse_enum(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) 
         let peeked_token = match tokens.peek() {
             Some(token) => token.clone(),
             None => {
-                error!("Sudden end of file in the middle of a struct!");
+                error!("Sudden end of file in the middle of an enum!");
                 return Err(ParsingError::UnexpectedEndOfInput);
             }
         };
@@ -649,7 +702,7 @@ fn parse_extension(tokens: &mut impl TokenSource, last_comment: &mut Option<Stri
     // Get extend token
     tokens.expect_token(Token::Extend)?;
 
-    // Peek next token to see if it's a struct or enum
+    // Peek next token to see if it's a bitfield, message, struct, or enum
     let next_token = match tokens.peek() {
         Some(token) => token,
         None => return Err(ParsingError::UnexpectedEndOfInput)
@@ -662,6 +715,10 @@ fn parse_extension(tokens: &mut impl TokenSource, last_comment: &mut Option<Stri
         },
         Token::Enum => match parse_enum(tokens, last_comment) {
             Ok(definition) => Ok(ExtensionDefinition::Enum(definition)),
+            Err(error) => Err(error)
+        },
+        Token::Message => match parse_message(tokens, last_comment) {
+            Ok(definition) => Ok(ExtensionDefinition::Message(definition)),
             Err(error) => Err(error)
         },
         Token::Struct => match parse_struct(tokens, last_comment) {
@@ -814,19 +871,19 @@ fn parse_reserved(tokens: &mut impl TokenSource, allow_negative: bool) -> Result
     Ok(reserved_values)
 }
 
-fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<StructDefinition, ParsingError> {
+fn parse_message(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<MessageDefinition, ParsingError> {
     // Get comment if any
     let comment = last_comment.take();
 
     // Get struct token
-    tokens.expect_token(Token::Struct)?;
+    tokens.expect_token(Token::Message)?;
 
-    // Get identifier
-    let identifier = tokens.expect_identifier()?;
+    // Get message name
+    let name = tokens.expect_identifier()?.item;
 
     tokens.expect_token(Token::LeftBrace)?;
 
-    let mut members = Vec::new();
+    let mut fields: Vec<MessageField> = Vec::new();
     let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
     let mut reserved_indexes: Vec<FieldIndex> = Vec::new();
 
@@ -843,7 +900,7 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
         };
 
         // Check for orphan comments
-        let orphan_comment = check_for_orphan_comment(tokens, members.len(), &comment);
+        let orphan_comment = check_for_orphan_comment(tokens, fields.len(), &comment);
 
         if let Some(orphan_comment) = orphan_comment {
             // Add orphan comment to list
@@ -871,13 +928,13 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
             continue;
         }
 
-        // Parse struct member
+        // Parse message field
         // ————————————————————
 
         let field_ident = tokens.expect_identifier()?;
 
         tokens.expect_token(Token::Colon)?;
-        let tk = tokens.expect_type()?;
+        let data_type = tokens.expect_field_type()?.item;
 
         tokens.expect_token(Token::Equals)?;
 
@@ -891,12 +948,102 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
             _ => return Err(ParsingError::UnexpectedToken(index_token))
         };
 
+        fields.push(MessageField {
+            identifier: field_ident.item.clone(),
+            data_type,
+            index,
+            comment: comment.map(|s| s.item)
+        });
+
+        if tokens.maybe_expect(Token::SemiColon).is_none() {
+            tokens.expect_token(Token::RightBrace)?;
+            break;
+        }
+        if tokens.maybe_expect(Token::RightBrace).is_some() {
+            break;
+        }
+    }
+
+    Ok(MessageDefinition {
+        name,
+        fields,
+        reserved_indexes,
+        orphan_comments,
+        comment
+    })
+}
+
+pub fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>) -> Result<StructDefinition, ParsingError> {
+    // Get comment if any
+    let comment = last_comment.take();
+
+    // Get struct token
+    tokens.expect_token(Token::Struct)?;
+
+    // Get message name
+    let name = tokens.expect_identifier()?.item;
+
+    tokens.expect_token(Token::LeftBrace)?;
+
+    let mut members: Vec<StructMember> = Vec::new();
+    let mut orphan_comments: Vec<StandaloneCommentDefinition> = Vec::new();
+
+    loop {
+        let comment = tokens.maybe_expect_comment();
+
+        // Peek next token
+        let peeked_token = match tokens.peek() {
+            Some(token) => token.clone(),
+            None => {
+                error!("Sudden end of file in the middle of a struct!");
+                return Err(ParsingError::UnexpectedEndOfInput);
+            }
+        };
+
+        // Check for orphan comments
+        let orphan_comment = check_for_orphan_comment(tokens, members.len(), &comment);
+
+        if let Some(orphan_comment) = orphan_comment {
+            // Add orphan comment to list
+            orphan_comments.push(orphan_comment);
+
+            // If the next token is a right brace, then the definition has ended, so break and return
+            if tokens.maybe_expect(Token::RightBrace).is_some() {
+                break;
+            }
+            continue;
+        }
+
+        // Check for reservations, which are not valid
+        if peeked_token.item == Token::Reserve {
+            error!("Struct indexes cannot be reserved. They are merely for data ordering when flattening the struct.");
+            return Err(ParsingError::UnexpectedToken(peeked_token));
+        }
+
+        // Parse struct member
+        // ————————————————————
+
+        let field_ident = tokens.expect_identifier()?;
+
+        tokens.expect_token(Token::Colon)?;
+        let data_type = tokens.expect_member_type()?.item;
+
+        tokens.expect_token(Token::Equals)?;
+
+        let index_token = tokens.expect_next()?;
+        let index: u64 = match &index_token.item {
+            Token::NumericLiteral(literal) => match literal.to_field_index() {
+                Err(_) => return Err(ParsingError::UnexpectedToken(index_token)),
+                Ok(index) => index
+            },
+            _ => return Err(ParsingError::UnexpectedToken(index_token))
+        };
+
         members.push(StructMember {
             identifier: field_ident.item.clone(),
-            data_type: tk.item.clone(),
+            data_type,
             index,
-            comment: comment.map(|s| s.item),
-            user_definition_link: UserDefinitionLink::NoLink
+            comment: comment.map(|s| s.item)
         });
 
         if tokens.maybe_expect(Token::SemiColon).is_none() {
@@ -909,9 +1056,8 @@ fn parse_struct(tokens: &mut impl TokenSource, last_comment: &mut Option<String>
     }
 
     Ok(StructDefinition {
-        name: identifier.item,
+        name,
         members,
-        reserved_indexes,
         orphan_comments,
         comment
     })
@@ -985,6 +1131,11 @@ pub fn parse_tokens(tokens: &mut impl TokenSource) -> ParsingResult<Definitions>
 
             Token::Redefine => match parse_redefine(tokens, &mut last_comment) {
                 Ok(definition) => definitions.redefines.push(definition),
+                Err(error) => return Err(error)
+            },
+
+            Token::Message => match parse_message(tokens, &mut last_comment) {
+                Ok(definition) => definitions.messages.push(definition),
                 Err(error) => return Err(error)
             },
 

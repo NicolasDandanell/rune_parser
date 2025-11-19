@@ -1,9 +1,10 @@
-use crate::types::{bitfields::BitfieldDefinition, enums::EnumDefinition, structs::StructDefinition};
+use crate::types::{BitfieldDefinition, EnumDefinition, MessageDefinition, StructDefinition};
 
 /// Helper holding all three possible extension types. Used only when parsing
 pub enum ExtensionDefinition {
     Bitfield(BitfieldDefinition),
     Enum(EnumDefinition),
+    Message(MessageDefinition),
     Struct(StructDefinition)
 }
 
@@ -13,6 +14,8 @@ pub struct Extensions {
     pub bitfields: Vec<BitfieldDefinition>,
     /// List of enum extensions
     pub enums:     Vec<EnumDefinition>,
+    // List of message extensions
+    pub messages:  Vec<MessageDefinition>,
     /// List of struct extensions
     pub structs:   Vec<StructDefinition>
 }
@@ -22,6 +25,7 @@ impl Extensions {
         match entry {
             ExtensionDefinition::Bitfield(entry) => self.bitfields.push(entry),
             ExtensionDefinition::Enum(entry) => self.enums.push(entry),
+            ExtensionDefinition::Message(entry) => self.messages.push(entry),
             ExtensionDefinition::Struct(entry) => self.structs.push(entry)
         }
     }
@@ -34,6 +38,7 @@ impl Extensions {
         Extensions {
             bitfields: Vec::with_capacity(size),
             enums:     Vec::with_capacity(size),
+            messages:  Vec::with_capacity(size),
             structs:   Vec::with_capacity(size)
         }
     }
