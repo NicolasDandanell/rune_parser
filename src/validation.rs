@@ -61,64 +61,76 @@ impl Primitive {
     }
 
     /// Used for enums to validate value against backing type
-    pub fn validate_value(&self, value: &NumericLiteral) -> bool {
+    pub fn validate_value(&self, numeric_literal: &NumericLiteral) -> bool {
         match self {
             // Single Byte
-            Primitive::Bool => matches!(value, NumericLiteral::Boolean(_)),
+            Primitive::Bool => matches!(numeric_literal, NumericLiteral::Boolean(_)),
 
-            Primitive::Char | Primitive::I8 => match value {
+            Primitive::Char => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
+                NumericLiteral::PositiveInteger(value, _) => *value <= u8::MAX as u64,
+                _ => false
+            },
+
+            Primitive::I8 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => *value <= i8::MAX as u64,
                 NumericLiteral::NegativeInteger(value, _) => Primitive::I8_RANGE.contains(value),
                 _ => false
             },
 
-            Primitive::U8 => match value {
+            Primitive::U8 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => Primitive::U8_RANGE.contains(value),
                 _ => false
             },
 
             // Two Bytes
-            Primitive::I16 => match value {
-                // Positives
+            Primitive::I16 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => *value <= i16::MAX as u64,
-                // Negatives
                 NumericLiteral::NegativeInteger(value, _) => Primitive::I16_RANGE.contains(value),
                 _ => false
             },
-            Primitive::U16 => match value {
+            Primitive::U16 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => Primitive::U16_RANGE.contains(value),
                 _ => false
             },
 
             // Four Bytes
-            Primitive::F32 => match value {
+            Primitive::F32 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::Float(float) => Primitive::F32_RANGE.contains(float),
                 _ => false
             },
-            Primitive::I32 => match value {
-                // Positives
+            Primitive::I32 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => *value <= i32::MAX as u64,
-                // Negatives
                 NumericLiteral::NegativeInteger(value, _) => Primitive::I32_RANGE.contains(value),
                 _ => false
             },
-            Primitive::U32 => match value {
+            Primitive::U32 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => Primitive::U32_RANGE.contains(value),
                 _ => false
             },
 
             // Eight Bytes - Make assumptions, as if the value would not fit, we would not even be able to parse it into the program...
-            Primitive::F64 => matches!(value, NumericLiteral::Float(_)),
+            Primitive::F64 => matches!(numeric_literal, NumericLiteral::Float(_)),
 
-            Primitive::I64 => match value {
-                // Positives
+            Primitive::I64 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
                 NumericLiteral::PositiveInteger(value, _) => *value < i64::MAX as u64,
-                // Negatives
                 NumericLiteral::NegativeInteger(_, _) => true,
                 _ => false
             },
 
-            Primitive::U64 => matches!(value, NumericLiteral::PositiveInteger(_, _)),
+            Primitive::U64 => match numeric_literal {
+                NumericLiteral::AsciiChar(character) => character.is_ascii(),
+                NumericLiteral::PositiveInteger(_, _) => true,
+                _ => false
+            },
 
             _ => unreachable!("Critical! Invalid backing type for enum encountered during verification. This should never happen!")
         }

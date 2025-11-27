@@ -93,6 +93,7 @@ pub enum NumeralSystem {
 
 #[derive(Debug, Clone)]
 pub enum NumericLiteral {
+    AsciiChar(char),
     Boolean(bool),
     PositiveInteger(u64, NumeralSystem),
     NegativeInteger(i64, NumeralSystem),
@@ -102,6 +103,7 @@ pub enum NumericLiteral {
 impl NumericLiteral {
     pub fn containing_type(&self) -> Primitive {
         match self {
+            NumericLiteral::AsciiChar(_) => Primitive::Char,
             NumericLiteral::Boolean(_) => Primitive::Bool,
             NumericLiteral::PositiveInteger(_, _) => Primitive::U64,
             NumericLiteral::NegativeInteger(_, _) => Primitive::I64,
@@ -113,6 +115,18 @@ impl NumericLiteral {
 impl Display for NumericLiteral {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            NumericLiteral::AsciiChar(character) => match character {
+                character if character.is_alphanumeric() => write!(formatter, "{0:?}", character),
+                character => write!(formatter, "{0}", {
+                    let output_string = character.escape_default().to_string().replace(['{', '}'], "");
+
+                    match output_string.contains("u") {
+                        true => format!("0x{0:02X}", *character as u8),
+                        false => format!("\'{0}\'", output_string)
+                    }
+                })
+            },
+
             NumericLiteral::Boolean(boolean) => write!(formatter, "{0}", boolean),
             NumericLiteral::Float(float) => write!(formatter, "{0}", float),
 
@@ -135,67 +149,48 @@ impl PartialEq for NumericLiteral {
     /// Evaluate the raw numeric value of the literals, casting types as needed
     fn eq(&self, other: &NumericLiteral) -> bool {
         match self {
+            NumericLiteral::AsciiChar(own_value) => match other {
+                NumericLiteral::AsciiChar(other_value) => own_value == other_value,
+                NumericLiteral::Boolean(other_value) => *own_value as u8 == *other_value as u8,
+                NumericLiteral::PositiveInteger(other_value, _) if *other_value <= u8::MAX as u64 => *own_value as u8 == *other_value as u8,
+                NumericLiteral::Float(other_value) if other_value.fract() == 0.0 && *other_value >= 0.0 => *own_value as u8 == *other_value as u8,
+                // Remaining values cannot be used for comparison
+                _ => false
+            },
+
             NumericLiteral::Boolean(own_value) => match other {
+                NumericLiteral::AsciiChar(other_value) => *own_value as u8 == *other_value as u8,
                 NumericLiteral::Boolean(other_value) => own_value == other_value,
                 NumericLiteral::PositiveInteger(other_value, _) => *own_value as u64 == *other_value,
-                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
-                    false => false,
-                    true => *own_value as i64 == *other_value as i64
-                },
-                // Other types store only negative values
+                NumericLiteral::Float(other_value) if other_value.fract() == 0.0 && *other_value >= 0.0 => *own_value as u64 == *other_value as u64,
+                // Remaining values cannot be used for comparison
                 _ => false
             },
 
             NumericLiteral::PositiveInteger(own_value, _) => match other {
+                NumericLiteral::AsciiChar(other_value) if *own_value <= u8::MAX as u64 => *own_value as u8 == *other_value as u8,
                 NumericLiteral::Boolean(other_value) => *own_value == *other_value as u64,
                 NumericLiteral::PositiveInteger(other_value, _) => *own_value == *other_value,
-                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
-                    false => false,
-                    true => match *other_value < 0.0 {
-                        true => false,
-                        false => *own_value == *other_value as u64
-                    }
-                },
-                // Other types store only negative values
+                NumericLiteral::Float(other_value) if other_value.fract() == 0.0 && *other_value >= 0.0 && *other_value <= u64::MAX as f64 => *own_value == *other_value as u64,
+                // Remaining values cannot be used for comparison
                 _ => false
             },
 
             NumericLiteral::NegativeInteger(own_value, _) => match other {
                 NumericLiteral::NegativeInteger(other_value, _) => *own_value == *other_value,
-                NumericLiteral::Float(other_value) => match other_value.fract() == 0.0 {
-                    false => false,
-                    true => *own_value == *other_value as i64
-                },
-                // Other types store only positive values
+                NumericLiteral::Float(other_value) if other_value.fract() == 0.0 && *other_value <= 0.0 && *other_value >= i64::MIN as f64 => *own_value == *other_value as i64,
+                // Remaining values cannot be used for comparison
                 _ => false
             },
 
             NumericLiteral::Float(own_value) => match other {
+                NumericLiteral::AsciiChar(other_value) if own_value.fract() == 0.0 && *own_value >= 0.0 && *own_value <= u8::MAX as f64 => *own_value as u8 == *other_value as u8,
                 NumericLiteral::Float(other_value) => *own_value == *other_value,
-
-                // Boolean
-                NumericLiteral::Boolean(other_value) => match own_value.fract() == 0.0 {
-                    false => false,
-                    true => *own_value as i64 == *other_value as i64
-                },
-
-                // Positives
-                NumericLiteral::PositiveInteger(other_value, _) => match own_value.fract() == 0.0 {
-                    false => false,
-                    true => match *own_value >= 0.0 && *own_value <= u64::MAX as f64 {
-                        true => *own_value as u64 == *other_value,
-                        false => false
-                    }
-                },
-
-                // Negatives
-                NumericLiteral::NegativeInteger(other_value, _) => match own_value.fract() == 0.0 {
-                    false => false,
-                    true => match *own_value <= 0.0 && *own_value >= i64::MIN as f64 {
-                        true => *own_value as i64 == *other_value,
-                        false => false
-                    }
-                }
+                NumericLiteral::Boolean(other_value) if own_value.fract() == 0.0 && *own_value >= 0.0 && *own_value <= u64::MAX as f64 => *own_value as u64 == *other_value as u64,
+                NumericLiteral::PositiveInteger(other_value, _) if own_value.fract() == 0.0 && *own_value >= 0.0 && *own_value <= u64::MAX as f64 => *own_value as u64 == *other_value,
+                NumericLiteral::NegativeInteger(other_value, _) if own_value.fract() == 0.0 && *own_value <= 0.0 && *own_value >= i64::MIN as f64 => *own_value as i64 == *other_value,
+                // Remaining values cannot be used for comparison
+                _ => false
             }
         }
     }
@@ -483,6 +478,127 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
         }
     }
 
+    pub fn scan_char(&mut self) -> ScanningResult {
+        let starting_from = self.position();
+        let mut from = starting_from;
+        from.offset = from.offset.map(|v| v - 1);
+
+        // Advance past the ' that caused this function to be called
+        self.advance();
+
+        let mut text: String = String::new();
+
+        let mut had_escape: bool = false;
+        let mut previous_was_escape: bool = false;
+
+        let mut index: usize = 0;
+
+        while self.peek().is_some() {
+            match self.peek().unwrap() {
+                // Check for escape sequence, and set the boolean accordingly
+                '\\' if !previous_was_escape => {
+                    if index != 0 {
+                        error!("Invalid mid-character escape sequence in character literal declaration");
+                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                    }
+
+                    had_escape = true;
+                    previous_was_escape = true;
+                    text.push(self.advance().unwrap());
+                },
+
+                // If previous was not escape, and we encounter a ', then the char definition is over
+                '\'' if !previous_was_escape => {
+                    self.advance();
+                    break;
+                },
+
+                // Add ascii characters normally
+                character if character.is_ascii() && (index == 0 || had_escape) => {
+                    previous_was_escape = false;
+                    text.push(self.advance().unwrap())
+                },
+
+                // This case will trigger if multiple valid ascii characters are contained in the declaration, such as 'ab'
+                character if character.is_ascii() => {
+                    text.push(self.advance().unwrap());
+                    error!("Multiple ascii characters {0} found in character literal declaration", text);
+                    return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                },
+
+                // Any non-ascii characters should cause the parsing to return an error
+                value => {
+                    error!("Unexpected character {0} found in character literal declaration", value);
+                    return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                }
+            }
+            index += 1;
+        }
+
+        // Parse text string into a valid ascii value
+        // ———————————————————————————————————————————
+
+        let resulting_char: char = match text.len() {
+            0 => {
+                error!("Empty character found in character literal declaration");
+                return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+            },
+            1 => text.chars().nth(0).unwrap(),
+            // We already checked that the escape character was the first one when > 1 characters
+            2 => match text.chars().nth(1).unwrap() {
+                character if character.is_numeric() => u8::from_str_radix(&character.to_string(), 10).unwrap() as char,
+                'a' => 0x07 as char,
+                'b' => 0x08 as char,
+                'e' => 0x1B as char,
+                'f' => 0x0C as char,
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                'v' => 0x0B as char,
+                '\\' => '\\',
+                '\'' => '\'',
+                '"' => '"',
+                _ => {
+                    error!("Invalid escape sequence {0} found", text);
+                    return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                }
+            },
+            3.. => match text.chars().nth(1).unwrap() {
+                character if character.is_numeric() => match u8::from_str_radix(&text[1..], 10) {
+                    Ok(value) => value as char,
+                    Err(_) => {
+                        error!("Invalid escape sequence {0} found", text);
+                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                    }
+                },
+                'u' => match u8::from_str_radix(&text[2..], 10) {
+                    Ok(value) => value as char,
+                    Err(_) => {
+                        error!("Invalid escape sequence {0} found", text);
+                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                    }
+                },
+                'x' => match u8::from_str_radix(&text[2..], 16) {
+                    Ok(value) => value as char,
+                    Err(_) => {
+                        error!("Invalid escape sequence {0} found", text);
+                        return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                    }
+                },
+                _ => {
+                    error!("Invalid escape sequence {0} found", text);
+                    return Err(ScanningError::InvalidLiteral(Spanned::new((), from, self.position())));
+                }
+            }
+        };
+
+        println!("Got text: \'{0}\'\t=> {1}", text, resulting_char);
+
+        let character: NumericLiteral = NumericLiteral::AsciiChar(resulting_char);
+
+        Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(character), from, self.position())))
+    }
+
     pub fn scan_numerics(&mut self) -> ScanningResult {
         let starting_from = self.position();
         let mut from = starting_from;
@@ -669,6 +785,7 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
                 self.offset = 0;
                 Ok(ScanningProduct::Skip)
             },
+            '\'' => self.scan_char(),
 
             character if character.is_numeric() || character == '-' => self.scan_numerics(),
             character if character.is_alphanumeric() || character == '_' => self.scan_identifier(),
