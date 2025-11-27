@@ -592,8 +592,6 @@ impl<ScannerIterator: Iterator<Item = char>> Scanner<ScannerIterator> {
             }
         };
 
-        println!("Got text: \'{0}\'\t=> {1}", text, resulting_char);
-
         let character: NumericLiteral = NumericLiteral::AsciiChar(resulting_char);
 
         Ok(ScanningProduct::Token(Spanned::new(Token::NumericLiteral(character), from, self.position())))
